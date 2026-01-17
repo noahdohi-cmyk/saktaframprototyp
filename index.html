@@ -3,269 +3,257 @@
 <head>
 <title>SaktaFram</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
-<style>
-html, body { margin:0; padding:0; height:100%; font-family:sans-serif; }
-#map { height:100%; width:100%; }
-body.light { background:#f0f0f0; }
-body.dark { background:#121212; color:white; }
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-/* Glaseffekt för paneler */
-.panel {
-  background: rgba(255,255,255,0.8);
-  backdrop-filter: blur(8px);
+<style>
+html,body{margin:0;padding:0;height:100%;font-family:sans-serif;}
+#map{height:100%;width:100%;}
+
+/* Panels */
+.panel{
+  background:rgba(255,255,255,0.85);
+  backdrop-filter:blur(8px);
   border-radius:12px;
   padding:10px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.3);
-  transition: all 0.3s ease;
+  box-shadow:0 4px 12px rgba(0,0,0,.3);
 }
 
-/* Sökpanel */
-#searchBox { position:absolute; top:20px; left:50%; transform:translateX(-50%); z-index:1000;
-  display:flex; gap:10px; }
-#searchBox.hide { opacity:0; pointer-events:none; }
-#searchBox input { padding:8px 12px; width:200px; border-radius:8px; border:1px solid #ccc; font-size:16px; }
-#searchBox button { padding:8px 16px; border:none; border-radius:8px;
-  background:#007bff; color:white; font-weight:bold; cursor:pointer; transition: all 0.2s; }
-#searchBox button:hover { transform:scale(1.05); background:#0056b3; }
+/* Search */
+#searchBox{
+  position:absolute;top:20px;left:50%;
+  transform:translateX(-50%);
+  display:flex;gap:10px;
+  z-index:1000;
+}
+#searchBox.hide{opacity:0;pointer-events:none;}
+#searchBox input{
+  padding:8px 12px;width:200px;
+  border-radius:8px;border:1px solid #ccc;
+  font-size:16px;
+}
+#searchBox button{
+  padding:8px 16px;border:none;
+  border-radius:8px;
+  background:#007bff;color:white;
+  font-weight:bold;cursor:pointer;
+}
 
-/* Avsluta & Return-knappar */
-#endNav, #returnBtn { position:absolute; z-index:1003; border:none; border-radius:50%;
-  width:50px; height:50px; font-size:24px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.3);
-  transition: all 0.3s ease; }
-#endNav:hover, #returnBtn:hover { transform:scale(1.1); }
-#endNav { bottom:150px; right:20px; background:#dc3545; color:white; }
-#returnBtn { bottom:80px; right:20px; background:#007bff; color:white; }
+/* Buttons */
+#endNav,#returnBtn{
+  position:absolute;right:20px;
+  width:50px;height:50px;
+  border-radius:50%;
+  border:none;font-size:22px;
+  color:white;cursor:pointer;
+  box-shadow:0 4px 12px rgba(0,0,0,.3);
+  z-index:1001;display:none;
+}
+#endNav{bottom:150px;background:#dc3545;}
+#returnBtn{bottom:80px;background:#007bff;}
 
-/* Bottom-bar med ikoner */
-#bottomBar { position:absolute; bottom:-60px; left:0; width:100%; background: rgba(0,0,0,0.8); color:white;
-  display:flex; justify-content: space-around; font-weight:bold; font-size:16px; z-index:1000;
-  border-top-left-radius:12px; border-top-right-radius:12px; transition: bottom 0.5s ease; }
-#bottomBar.show { bottom:0; }
-.bottomItem { display:flex; flex-direction:column; align-items:center; gap:2px; }
-.bottomItem i { font-size:18px; }
+/* Bottom bar */
+#bottomBar{
+  position:absolute;bottom:-70px;left:0;
+  width:100%;background:rgba(0,0,0,.85);
+  color:white;display:flex;
+  justify-content:space-around;
+  padding:14px 0;font-weight:bold;
+  border-top-left-radius:14px;
+  border-top-right-radius:14px;
+  transition:.4s;z-index:1000;
+}
+#bottomBar.show{bottom:0;}
+.bottomItem{display:flex;flex-direction:column;align-items:center;font-size:14px}
 
-/* Version tag */
-#versionTag { position:absolute; top:10px; left:10px; background: rgba(0,0,0,0.7); color:white;
-  padding:5px 10px; font-weight:bold; border-radius:5px; z-index:1001; }
+/* Version */
+#versionTag{
+  position:absolute;top:10px;left:10px;
+  background:rgba(0,0,0,.7);
+  color:white;padding:5px 10px;
+  border-radius:6px;font-weight:bold;
+  z-index:1000;
+}
 
 /* Blob */
-.pulsingMarker { width:20px; height:20px; background: rgba(0,150,255,0.7);
-  border-radius:50%; box-shadow:0 0 15px rgba(0,150,255,0.5); animation:pulse 1.2s infinite; }
-@keyframes pulse { 0%{transform:scale(0.8);opacity:0.7;} 50%{transform:scale(1.3);opacity:0.4;} 100%{transform:scale(0.8);opacity:0.7;} }
+.pulsingMarker{
+  width:20px;height:20px;
+  background:rgba(0,150,255,.8);
+  border-radius:50%;
+  box-shadow:0 0 15px rgba(0,150,255,.6);
+  animation:pulse 1.2s infinite;
+}
+@keyframes pulse{
+  0%{transform:scale(.8);opacity:.7}
+  50%{transform:scale(1.3);opacity:.4}
+  100%{transform:scale(.8);opacity:.7}
+}
 
-/* Suggestions */
-#suggestions { position:absolute; top:58px; left:50%; transform:translateX(-50%); background:white; z-index:1002;
-  border-radius:8px; width:220px; max-height:200px; overflow-y:auto; box-shadow:0 2px 8px rgba(0,0,0,0.3); display:none; }
-.suggestionItem { padding:6px 10px; cursor:pointer; }
-.suggestionItem:hover { background:#e0e0e0; }
-
-/* Next-step box */
-#nextStep { position:absolute; top:90px; left:50%; transform:translateX(-50%);
-  background: rgba(0,0,0,0.7); color:white; padding:12px 16px; border-radius:16px; font-weight:bold; font-size:16px; z-index:1003;
-  max-width:280px; text-align:center; display:none; display:flex; align-items:center; gap:6px; justify-content:center; }
-#nextStep i { font-size:20px; }
-
-/* Fullscreen steps */
-#nextStepFullScreenBtn { position:absolute; top:20px; right:20px; z-index:1003; width:50px; height:50px; border-radius:50%;
-  border:none; background:#007bff; color:white; font-size:24px; cursor:pointer; display:none; transition: all 0.3s; }
-#nextStepFullScreenBtn:hover { transform:scale(1.1); }
-
-#fullScreenSteps { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#222;
-  color:white; z-index:2000; overflow-y:auto; padding:20px; box-sizing:border-box; }
-#fullScreenSteps h2{margin-top:20px;}
+/* Next step arrow */
+#nextStepArrow{
+  position:absolute;
+  top:90px;left:50%;
+  transform:translateX(-50%);
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  z-index:1002;
+}
+#nextStepArrow i{
+  font-size:48px;
+  color:#007bff;
+}
+#nextStepArrow span{
+  margin-top:6px;
+  background:rgba(0,0,0,.7);
+  color:white;
+  padding:4px 10px;
+  border-radius:12px;
+  font-weight:bold;
+}
 </style>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
-<body class="light">
+
+<body>
 <div id="versionTag">Version 1.12</div>
 
 <div id="searchBox" class="panel">
-  <input type="text" id="searchInput" placeholder="Adress eller plats" oninput="autocomplete()">
-  <button id="searchBtn" onclick="searchPlace()"><i class="fa fa-search"></i></button>
-  <button id="startNav" onclick="startNavigation()"><i class="fa fa-play"></i></button>
+  <input id="searchInput" placeholder="Adress eller plats">
+  <button onclick="searchPlace()"><i class="fa fa-search"></i></button>
+  <button onclick="startNavigation()"><i class="fa fa-play"></i></button>
 </div>
 
 <button id="endNav" onclick="endNavigation()"><i class="fa fa-stop"></i></button>
 <button id="returnBtn" onclick="returnToMe()"><i class="fa fa-location-arrow"></i></button>
 
-<div id="suggestions"></div>
-
-<div id="nextStep"><i class="fa fa-arrow-right"></i> <span id="nextStepText">Nästa steg</span></div>
-<button id="nextStepFullScreenBtn" onclick="openFullScreen()"><i class="fa fa-expand"></i></button>
-
-<div id="fullScreenSteps"><button onclick="closeFullScreen()">Stäng ✕</button><div id="stepsContainer"></div></div>
+<div id="nextStepArrow">
+  <i id="arrowIcon" class="fa fa-arrow-up"></i>
+  <span id="arrowText">-- m</span>
+</div>
 
 <div id="map"></div>
+
 <div id="bottomBar">
-  <div class="bottomItem"><i class="fa fa-clock"></i><span id="arrivalTime">--:--</span></div>
-  <div class="bottomItem"><i class="fa fa-hourglass-half"></i><span id="timeLeft">-- min</span></div>
-  <div class="bottomItem"><i class="fa fa-road"></i><span id="distanceLeft">-- km</span></div>
-  <div class="bottomItem"><i class="fa fa-tachometer-alt"></i><span id="speed">-- km/h</span></div>
+  <div class="bottomItem">⏰ <span id="arrivalTime">--:--</span></div>
+  <div class="bottomItem">⏳ <span id="timeLeft">-- min</span></div>
+  <div class="bottomItem">🛣 <span id="distanceLeft">-- km</span></div>
+  <div class="bottomItem">🚜 <span id="speed">-- km/h</span></div>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
 <script>
-var map=L.map('map',{zoomControl:false, dragging:true, touchZoom:true, scrollWheelZoom:true}).setView([63.83,20.26],6);
+const map=L.map('map',{zoomControl:false}).setView([63.83,20.26],6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-var userIcon=L.divIcon({className:'pulsingMarker', iconSize:[20,20], iconAnchor:[10,10]});
-var userBlob=null, routeData=null, navActive=false, lastPos=null, routeMarkers=[];
+let lastPos=null, navActive=false, routeData=null;
+let userBlob=null;
 
-var routingControl=L.Routing.control({
+const userIcon=L.divIcon({
+  className:'pulsingMarker',
+  iconSize:[20,20],
+  iconAnchor:[10,10]
+});
+
+const routing=L.Routing.control({
   waypoints:[],
-  lineOptions:{styles:[{color:'blue', opacity:0.6, weight:5}]},
   router:L.Routing.osrmv1({serviceUrl:'https://router.project-osrm.org/route/v1'}),
-  routeWhileDragging:false,
-  addWaypoints:false,
-  show:false
+  show:false,
+  addWaypoints:false
 }).addTo(map);
 
-// GPS position, blob uppdateras ENDAST med verklig GPS
-function updatePosition(){
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(function(pos){
-      let lat=pos.coords.latitude, lng=pos.coords.longitude;
-      let currentLatLng=L.latLng(lat,lng);
-      lastPos=currentLatLng;
+/* GPS */
+setInterval(()=>{
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const lat=pos.coords.latitude,lng=pos.coords.longitude;
+    lastPos=L.latLng(lat,lng);
 
-      if(navActive){
-        if(!userBlob) {
-          userBlob=L.marker(currentLatLng,{icon:userIcon}).addTo(map);
-          userBlob._icon.style.transform+=" scale(1.2)"; // pop microinteraction
-          setTimeout(()=>{ userBlob._icon.style.transform=userBlob._icon.style.transform.replace(" scale(1.2)",""); },200);
-        } else userBlob.setLatLng(currentLatLng);
-        updateNextInstruction(currentLatLng);
-        updateBottomBar([lat,lng]);
-      }
-      let speed=pos.coords.speed?(pos.coords.speed*3.6).toFixed(1):'--';
-      document.getElementById('speed').textContent=speed;
-    });
-  }
-}
-setInterval(updatePosition,500);
+    if(navActive && userBlob){
+      userBlob.setLatLng(lastPos);
+      updateArrow();
+      updateBottomBar();
+    }
 
-// Return to me
-function returnToMe(){ if(lastPos) map.flyTo(lastPos,map.getMaxZoom(),{animate:true}); }
+    document.getElementById('speed').textContent=
+      pos.coords.speed?(pos.coords.speed*3.6).toFixed(1):'--';
+  });
+},500);
 
-// Navigation start
+/* Navigation */
 function startNavigation(){
-  if(!routeData || !lastPos) return;
+  if(!routeData||!lastPos)return;
   navActive=true;
-  document.getElementById('bottomBar').classList.add('show');
+
+  map.flyTo(lastPos,map.getMaxZoom(),{duration:1.5});
+
+  setTimeout(()=>{
+    userBlob=L.marker(lastPos,{icon:userIcon}).addTo(map);
+    document.getElementById('nextStepArrow').style.display='flex';
+  },1500);
+
   document.getElementById('searchBox').classList.add('hide');
-  document.getElementById('endNav').style.display='inline-block';
-  document.getElementById('returnBtn').style.display='inline-block';
-  map.flyTo(lastPos,map.getMaxZoom(),{animate:true,duration:1.5});
-  if(!userBlob) userBlob=L.marker(lastPos,{icon:userIcon}).addTo(map);
+  document.getElementById('bottomBar').classList.add('show');
+  document.getElementById('endNav').style.display='block';
+  document.getElementById('returnBtn').style.display='block';
 }
 
-// Navigation end
 function endNavigation(){
   navActive=false;
+  if(userBlob){map.removeLayer(userBlob);userBlob=null;}
+  routing.setWaypoints([]);
+  routeData=null;
+  document.getElementById('nextStepArrow').style.display='none';
   document.getElementById('bottomBar').classList.remove('show');
+  document.getElementById('searchBox').classList.remove('hide');
   document.getElementById('endNav').style.display='none';
   document.getElementById('returnBtn').style.display='none';
-  document.getElementById('searchBox').classList.remove('hide');
-  routingControl.setWaypoints([]);
-  routeMarkers.forEach(m=>map.removeLayer(m));
-  routeMarkers=[]; routeData=null;
-  document.getElementById('nextStep').style.display='none';
-  document.getElementById('nextStepFullScreenBtn').style.display='none';
 }
 
-// Search & route
+function returnToMe(){
+  if(lastPos) map.flyTo(lastPos,map.getZoom());
+}
+
+/* Search */
 function searchPlace(){
-  let query=document.getElementById('searchInput').value;
-  if(!query || !lastPos) return;
-  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
-    .then(resp=>resp.json()).then(data=>{
-      if(data.length>0){
-        routeMarkers.forEach(m=>map.removeLayer(m)); routeMarkers=[];
-        let lat=parseFloat(data[0].lat), lon=parseFloat(data[0].lon);
-        let m=L.marker([lat,lon]).addTo(map).bindPopup(query).openPopup(); routeMarkers.push(m);
+  const q=document.getElementById('searchInput').value;
+  if(!q||!lastPos)return;
 
-        let startLatLng=lastPos;
-        let destinationLatLng=L.latLng(lat,lon);
-
-        routingControl.setWaypoints([startLatLng,destinationLatLng]);
-        routingControl.on('routesfound', function(e){
-          routeData = e.routes[0];
-          displayRouteInfo(routeData);
-        });
-
-        let startBtn=document.getElementById('startNav'); startBtn.style.display='inline-block';
-        setTimeout(()=>startBtn.style.opacity=1,50);
-      } else alert("Plats hittades inte.");
-    });
-}
-
-// Next step
-function updateNextInstruction(currentLatLng){
-  if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
-  let closestIndex=0, minDist=Infinity;
-  routeData.coordinates.forEach((c,i)=>{
-    let d=currentLatLng.distanceTo(L.latLng(c[1],c[0]));
-    if(d<minDist){ minDist=d; closestIndex=i; }
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}`)
+  .then(r=>r.json()).then(d=>{
+    if(!d.length)return;
+    routing.setWaypoints([lastPos,L.latLng(d[0].lat,d[0].lon)]);
+    routing.on('routesfound',e=>{routeData=e.routes[0];});
   });
-  let instrText = routeData.instructions && routeData.instructions[closestIndex] ? routeData.instructions[closestIndex].text : '';
-  let box=document.getElementById('nextStep');
-  let textSpan=document.getElementById('nextStepText');
-  let fullBtn=document.getElementById('nextStepFullScreenBtn');
-  if(instrText){ box.style.display='flex'; textSpan.textContent=instrText; fullBtn.style.display='block'; }
-  else { box.style.display='none'; fullBtn.style.display='none'; }
 }
 
-// Bottom-bar
-function displayRouteInfo(route){
-  if(!route) return;
-  let distance=route.summary.totalDistance/1000; 
-  let time=distance/30*60;
-  let now=new Date(), arrival=new Date(now.getTime()+time*60000);
-  document.getElementById('arrivalTime').textContent=`${arrival.getHours().toString().padStart(2,'0')}:${arrival.getMinutes().toString().padStart(2,'0')}`;
-  document.getElementById('timeLeft').textContent=`${time.toFixed(0)} min`;
-  document.getElementById('distanceLeft').textContent=`${distance.toFixed(1)} km`;
-}
-function updateBottomBar(currentPos){
-  if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
-  let currentLatLng=L.latLng(currentPos[0],currentPos[1]);
-  let lastPoint=routeData.coordinates[routeData.coordinates.length-1];
-  let lastLatLng=L.latLng(lastPoint[1],lastPoint[0]);
-  let kmLeft=currentLatLng.distanceTo(lastLatLng)/1000;
-  let timeLeft=kmLeft/30*60;
-  let now=new Date(); let arrival=new Date(now.getTime()+timeLeft*60000);
-  document.getElementById('arrivalTime').textContent=`${arrival.getHours().toString().padStart(2,'0')}:${arrival.getMinutes().toString().padStart(2,'0')}`;
-  document.getElementById('timeLeft').textContent=`${timeLeft.toFixed(0)} min`;
-  document.getElementById('distanceLeft').textContent=`${kmLeft.toFixed(1)} km`;
+/* Arrow logic */
+function updateArrow(){
+  if(!routeData||!routeData.instructions)return;
+  const inst=routeData.instructions.find(i=>i.distance>5);
+  if(!inst)return;
+
+  let icon='fa-arrow-up';
+  if(inst.text.includes('vänster')) icon='fa-arrow-left';
+  if(inst.text.includes('höger')) icon='fa-arrow-right';
+
+  document.getElementById('arrowIcon').className='fa '+icon;
+  document.getElementById('arrowText').textContent=Math.round(inst.distance)+' m';
 }
 
-// Fullscreen steps
-function openFullScreen(){
-  let fs=document.getElementById('fullScreenSteps');
-  let container=document.getElementById('stepsContainer'); container.innerHTML='';
-  if(!routeData || !routeData.instructions) return;
-  routeData.instructions.forEach((inst,i)=>{ let h2=document.createElement('h2'); h2.textContent=`Steg ${i+1}: ${inst.text}`; container.appendChild(h2); });
-  fs.style.display='block';
-}
-function closeFullScreen(){ document.getElementById('fullScreenSteps').style.display='none'; }
+/* Bottom bar */
+function updateBottomBar(){
+  const end=routeData.coordinates.at(-1);
+  const km=lastPos.distanceTo(L.latLng(end[1],end[0]))/1000;
+  const min=km/30*60;
+  const arr=new Date(Date.now()+min*60000);
 
-// Autocomplete
-function autocomplete(){
-  let query=document.getElementById('searchInput').value;
-  if(!query){ document.getElementById('suggestions').style.display='none'; return; }
-  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&viewbox=${map.getBounds().toBBoxString()}&bounded=1`)
-    .then(resp=>resp.json()).then(data=>{
-      let sug=document.getElementById('suggestions'); sug.innerHTML='';
-      data.forEach(item=>{
-        let div=document.createElement('div'); div.className='suggestionItem'; div.textContent=item.display_name;
-        div.onclick=()=>{ document.getElementById('searchInput').value=item.display_name; sug.style.display='none'; searchPlace(); };
-        sug.appendChild(div);
-      });
-      sug.style.display=data.length>0?'block':'none';
-    });
+  document.getElementById('distanceLeft').textContent=km.toFixed(1)+' km';
+  document.getElementById('timeLeft').textContent=min.toFixed(0)+' min';
+  document.getElementById('arrivalTime').textContent=
+    arr.getHours().toString().padStart(2,'0')+':'+arr.getMinutes().toString().padStart(2,'0');
 }
 </script>
 </body>
