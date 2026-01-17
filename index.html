@@ -6,35 +6,39 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
   <style>
-    html, body { margin:0; padding:0; height:100%; overflow:hidden; }
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; font-family:sans-serif; }
     #map { height: 100%; width: 100%; }
 
+    /* UI box överst */
     #searchBox {
       position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-      z-index: 1000; background: white; padding: 8px; border-radius: 5px;
-      display: flex; gap: 5px;
+      z-index: 1000; background: rgba(255,255,255,0.9); padding: 10px; border-radius: 10px;
+      display: flex; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
     }
-    #searchBox input { padding:5px; width:180px; }
-    #searchBox button { padding:5px; }
+    #searchBox input { padding:6px 8px; width:180px; border-radius:5px; border:1px solid #ccc; }
+    #searchBox button {
+      padding:6px 12px; border:none; border-radius:5px;
+      background: #007bff; color:white; font-weight:bold;
+      cursor:pointer; transition: background 0.2s;
+    }
+    #searchBox button:hover { background: #0056b3; }
 
     #bottomBar {
       position: absolute; bottom:0; left:0; width:100%;
-      background: rgba(0,0,0,0.7); color:white; padding:8px;
-      font-family: sans-serif; display:flex; justify-content: space-around;
-      z-index: 1000;
+      background: rgba(0,0,0,0.75); color:white; padding:10px;
+      display:flex; justify-content: space-around; font-weight:bold;
+      z-index: 1000; font-size:16px;
     }
 
     #versionTag {
       position: absolute;
-      top: 10px;
-      right: 10px;
+      top: 10px; left: 10px;
       background: rgba(0,0,0,0.7);
       color: white;
-      padding: 5px 8px;
+      padding: 5px 10px;
       font-weight: bold;
       border-radius: 5px;
       z-index: 1001;
-      font-family: sans-serif;
     }
 
     /* Pulserande blob */
@@ -43,7 +47,7 @@
       height: 20px;
       background: rgba(0, 150, 255, 0.7);
       border-radius: 50%;
-      box-shadow: 0 0 10px rgba(0,150,255,0.5);
+      box-shadow: 0 0 15px rgba(0,150,255,0.5);
       animation: pulse 1.2s infinite;
     }
     @keyframes pulse {
@@ -54,12 +58,12 @@
   </style>
 </head>
 <body>
-<div id="versionTag">Version 1.0</div>
+<div id="versionTag">Version 1.1</div>
 
 <div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats, t.ex. ICA">
-  <button onclick="searchPlace()">Sök</button>
-  <button id="startNav" onclick="startNavigation()" disabled>Påbörja</button>
+  <button id="searchBtn" onclick="searchPlace()">Sök</button>
+  <button id="startNav" onclick="startNavigation()" style="display:none;">Påbörja</button>
 </div>
 
 <div id="map"></div>
@@ -79,7 +83,7 @@ var map = L.map('map', {
   zoomControl: false,
   dragging: true,
   touchZoom: true,
-  scrollWheelZoom: false,
+  scrollWheelZoom: true,
   doubleClickZoom: false
 }).setView([63.83, 20.26], 6);
 
@@ -101,8 +105,8 @@ var routingControl = L.Routing.control({
 var routeData = null;
 var navActive = false;
 
-// Uppdatera live-position och marker rotation
-function updatePosition() {
+// Live-position var 0,5 sek
+function updatePosition(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(function(pos){
       var lat = pos.coords.latitude;
@@ -120,7 +124,7 @@ function updatePosition() {
 }
 setInterval(updatePosition, 500);
 
-// Rotation av markör mot nästa punkt
+// Markör rotation mot nästa punkt
 function updateMarkerRotation(currentLatLng){
   if(!routeData) return;
   var coords = routeData.coordinates;
@@ -142,13 +146,16 @@ function searchPlace(){
         var lat = parseFloat(data[0].lat);
         var lon = parseFloat(data[0].lon);
         L.marker([lat, lon]).addTo(map).bindPopup(query).openPopup();
+
         var currentPos = userMarker.getLatLng();
         routingControl.setWaypoints([currentPos, L.latLng(lat, lon)]);
         routingControl.on('routesfound', function(e){
           routeData = e.routes[0];
           displayRouteInfo(routeData);
         });
-        document.getElementById('startNav').disabled = false;
+
+        // Visa Påbörja knapp och göm sök
+        document.getElementById('startNav').style.display = "inline-block";
       } else {
         alert("Plats hittades inte.");
       }
@@ -166,21 +173,28 @@ function displayRouteInfo(route){
   alert(`Distans: ${distance.toFixed(1)} km\nTid: ${time.toFixed(0)} min\nAnkomst: ${hours}:${mins}`);
 }
 
-// Starta navigering
+// Starta navigation
 function startNavigation(){
   if(!routeData) return;
   navActive = true;
+
+  // Visa bottom-bar
   document.getElementById('bottomBar').style.display='flex';
-  map.flyTo(userMarker.getLatLng(), 18, {animate:true, duration:2});
+
+  // Hög zoom
+  map.flyTo(userMarker.getLatLng(), map.getMaxZoom(), {animate:true, duration:1.5});
+
+  // Dölj sök och Påbörja
+  document.getElementById('searchBox').style.display='none';
 }
 
-// Uppdatera bottom bar med korrekt avstånd
+// Uppdatera bottom-bar
 function updateBottomBar(currentPos){
   if(!routeData) return;
   var currentLatLng = L.latLng(currentPos[0], currentPos[1]);
   var lastPoint = routeData.coordinates[routeData.coordinates.length-1];
   var lastLatLng = L.latLng(lastPoint[1], lastPoint[0]);
-  
+
   var kmLeft = currentLatLng.distanceTo(lastLatLng)/1000;
   var timeLeft = kmLeft/30*60;
   var now = new Date();
