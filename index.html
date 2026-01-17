@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
   <style>
     html, body { margin:0; padding:0; height:100%; font-family:sans-serif; }
-    #map { height: 100%; width: 100%; }
+    #map { height:100%; width:100%; }
 
     /* Themes */
     body.light { background:#f0f0f0; }
@@ -15,7 +15,7 @@
 
     /* Search & buttons */
     #searchBox {
-      position: absolute; top: 20px; left:50%; transform: translateX(-50%);
+      position:absolute; top:20px; left:50%; transform:translateX(-50%);
       z-index:1000; background: rgba(255,255,255,0.95); padding:12px;
       border-radius:12px; display:flex; gap:10px; box-shadow:0 4px 12px rgba(0,0,0,0.3);
       transition: opacity 0.4s ease;
@@ -24,8 +24,7 @@
     #searchBox input { padding:8px 12px; width:200px; border-radius:8px; border:1px solid #ccc; font-size:16px; }
     #searchBox button {
       padding:8px 16px; border:none; border-radius:8px;
-      background:#007bff; color:white; font-weight:bold;
-      cursor:pointer; transition: background 0.2s, opacity 0.4s;
+      background:#007bff; color:white; font-weight:bold; cursor:pointer; transition: background 0.2s, opacity 0.4s;
     }
     #searchBox button:hover { background:#0056b3; }
     #startNav { display:none; opacity:0; }
@@ -70,10 +69,18 @@
     }
     .suggestionItem { padding:6px 10px; cursor:pointer; }
     .suggestionItem:hover { background:#e0e0e0; }
+
+    /* Return to me button */
+    #returnBtn {
+      position:absolute; bottom:80px; right:20px; z-index:1002;
+      background:#007bff; color:white; border:none; border-radius:50%; width:50px; height:50px;
+      font-size:24px; display:none; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.3);
+      transition: opacity 0.3s;
+    }
   </style>
 </head>
 <body class="light">
-<div id="versionTag">Version 1.4</div>
+<div id="versionTag">Version 1.0</div>
 
 <div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats" oninput="autocomplete()">
@@ -81,6 +88,7 @@
   <button id="startNav" onclick="startNavigation()">Påbörja</button>
 </div>
 <div id="suggestions"></div>
+<button id="returnBtn" onclick="returnToMe()">↑</button>
 
 <div id="map"></div>
 
@@ -129,7 +137,7 @@ function autocomplete(){
         div.onclick=()=>{ document.getElementById('searchInput').value=item.display_name; sug.style.display='none'; searchPlace(); };
         sug.appendChild(div);
       });
-      sug.style.display=data.length>0?'block':'none';
+      sug.style.display=data.length>0? 'block':'none';
     });
 }
 
@@ -147,12 +155,10 @@ function updatePosition(){
       document.getElementById('speed').textContent = speed;
 
       if(navActive){
-        map.setView(currentLatLng,map.getMaxZoom(),{animate:true});
+        lastPos=currentLatLng;
         updateBottomBar([lat,lng]);
         updateMarkerRotation(currentLatLng);
       }
-
-      lastPos = currentLatLng;
     });
   }
 }
@@ -160,8 +166,14 @@ setInterval(updatePosition,500);
 
 function updateMarkerRotation(currentLatLng){
   if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
-  let next = routeData.coordinates[1];
-  let nextLatLng = L.latLng(next[1],next[0]);
+  let closestIndex = 0;
+  let minDist = Infinity;
+  routeData.coordinates.forEach((c,i)=>{
+    let d = currentLatLng.distanceTo(L.latLng(c[1],c[0]));
+    if(d<minDist){ minDist=d; closestIndex=i; }
+  });
+  let nextLatLng = L.latLng(routeData.coordinates[Math.min(closestIndex+1,routeData.coordinates.length-1)][1],
+                            routeData.coordinates[Math.min(closestIndex+1,routeData.coordinates.length-1)][0]);
   let angle = Math.atan2(nextLatLng.lng-currentLatLng.lng, nextLatLng.lat-currentLatLng.lat)*180/Math.PI;
   userMarker.setRotationAngle(angle);
 }
@@ -205,6 +217,30 @@ function startNavigation(){
   document.getElementById('bottomBar').classList.add('show');
   map.flyTo(userMarker.getLatLng(), map.getMaxZoom(), {animate:true, duration:1.5});
   document.getElementById('searchBox').classList.add('hide');
+}
+
+// Return to me button
+function returnToMe(){
+  if(lastPos) map.flyTo(lastPos,map.getMaxZoom(),{animate:true});
+  document.getElementById('returnBtn').style.display='none';
+}
+
+// Show return button if map moved
+map.on('dragstart zoomstart', function(){ if(navActive) document.getElementById('returnBtn').style.display='block'; });
+
+// Update bottom-bar
+function updateBottomBar(currentPos){
+  if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
+  let currentLatLng=L.latLng(currentPos[0],currentPos[1]);
+  let lastPoint=routeData.coordinates[routeData.coordinates.length-1];
+  let lastLatLng=L.latLng(lastPoint[1],lastPoint[0]);
+  let kmLeft = currentLatLng.distanceTo(lastLatLng)/1000;
+  let timeLeft = kmLeft/30*60;
+  let now=new Date();
+  let arrival=new Date(now.getTime()+timeLeft*60000);
+  document.getElementById('arrivalTime').textContent = `${arrival.getHours().toString().padStart(2,'0')}:${arrival.getMinutes().toString().padStart(2,'0')}`;
+  document.getElementById('timeLeft').textContent = `${timeLeft.toFixed(0)} min`;
+  document.getElementById('distanceLeft').textContent = `${kmLeft.toFixed(1)} km`;
 }
 </script>
 </body>
