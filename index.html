@@ -1,87 +1,64 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>SaktaFram</title>
+<title>SaktaFram 1.13</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
 html, body { margin:0; padding:0; height:100%; font-family:sans-serif; }
 #map { height:100%; width:100%; }
+
 body.light { background:#f0f0f0; }
 body.dark { background:#121212; color:white; }
 
-/* Glaseffekt för paneler */
-.panel {
-  background: rgba(255,255,255,0.8);
-  backdrop-filter: blur(8px);
-  border-radius:12px;
-  padding:10px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.3);
-  transition: all 0.3s ease;
+#searchBox {
+  position:absolute; top:20px; left:50%; transform:translateX(-50%);
+  display:flex; gap:10px; z-index:1000; background:rgba(255,255,255,0.8); backdrop-filter:blur(8px);
+  padding:10px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.3); transition:all 0.3s ease;
 }
-
-/* Sökpanel */
-#searchBox { position:absolute; top:20px; left:50%; transform:translateX(-50%); z-index:1000;
-  display:flex; gap:10px; }
 #searchBox.hide { opacity:0; pointer-events:none; }
-#searchBox input { padding:8px 12px; width:200px; border-radius:8px; border:1px solid #ccc; font-size:16px; }
+#searchBox input { padding:8px 12px; width:220px; border-radius:8px; border:1px solid #ccc; font-size:16px; }
 #searchBox button { padding:8px 16px; border:none; border-radius:8px;
-  background:#007bff; color:white; font-weight:bold; cursor:pointer; transition: all 0.2s; }
+  background:#007bff; color:white; font-weight:bold; cursor:pointer; transition:all 0.2s; }
 #searchBox button:hover { transform:scale(1.05); background:#0056b3; }
 
-/* Avsluta & Return-knappar */
+/* Avsluta & Return */
 #endNav, #returnBtn { position:absolute; z-index:1003; border:none; border-radius:50%;
   width:50px; height:50px; font-size:24px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.3);
-  transition: all 0.3s ease; }
+  transition:all 0.3s ease; }
 #endNav:hover, #returnBtn:hover { transform:scale(1.1); }
 #endNav { bottom:150px; right:20px; background:#dc3545; color:white; }
 #returnBtn { bottom:80px; right:20px; background:#007bff; color:white; }
 
-/* Bottom-bar med ikoner */
-#bottomBar { position:absolute; bottom:-60px; left:0; width:100%; background: rgba(0,0,0,0.8); color:white;
-  display:flex; justify-content: space-around; font-weight:bold; font-size:16px; z-index:1000;
-  border-top-left-radius:12px; border-top-right-radius:12px; transition: bottom 0.5s ease; }
-#bottomBar.show { bottom:0; }
-.bottomItem { display:flex; flex-direction:column; align-items:center; gap:2px; }
-.bottomItem i { font-size:18px; }
+/* Next-step pil */
+#nextStep { position:absolute; top:50px; left:50%; transform:translateX(-50%);
+  width:60px; height:60px; z-index:1003; display:flex; align-items:center; justify-content:center; }
+#nextStep i { font-size:40px; color:#007bff; transition: transform 0.3s ease; }
 
-/* Version tag */
+/* Bottom bar större */
+#bottomBar { position:absolute; bottom:-80px; left:0; width:100%; background: rgba(0,0,0,0.8); color:white;
+  display:flex; justify-content: space-around; font-weight:bold; font-size:18px; z-index:1000;
+  border-top-left-radius:16px; border-top-right-radius:16px; padding:16px 0; transition:bottom 0.5s ease; }
+#bottomBar.show { bottom:0; }
+.bottomItem { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.bottomItem i { font-size:20px; }
+
 #versionTag { position:absolute; top:10px; left:10px; background: rgba(0,0,0,0.7); color:white;
   padding:5px 10px; font-weight:bold; border-radius:5px; z-index:1001; }
 
-/* Blob */
-.pulsingMarker { width:20px; height:20px; background: rgba(0,150,255,0.7);
-  border-radius:50%; box-shadow:0 0 15px rgba(0,150,255,0.5); animation:pulse 1.2s infinite; }
-@keyframes pulse { 0%{transform:scale(0.8);opacity:0.7;} 50%{transform:scale(1.3);opacity:0.4;} 100%{transform:scale(0.8);opacity:0.7;} }
-
-/* Suggestions */
 #suggestions { position:absolute; top:58px; left:50%; transform:translateX(-50%); background:white; z-index:1002;
   border-radius:8px; width:220px; max-height:200px; overflow-y:auto; box-shadow:0 2px 8px rgba(0,0,0,0.3); display:none; }
 .suggestionItem { padding:6px 10px; cursor:pointer; }
 .suggestionItem:hover { background:#e0e0e0; }
 
-/* Next-step box */
-#nextStep { position:absolute; top:90px; left:50%; transform:translateX(-50%);
-  background: rgba(0,0,0,0.7); color:white; padding:12px 16px; border-radius:16px; font-weight:bold; font-size:16px; z-index:1003;
-  max-width:280px; text-align:center; display:none; display:flex; align-items:center; gap:6px; justify-content:center; }
-#nextStep i { font-size:20px; }
-
-/* Fullscreen steps */
-#nextStepFullScreenBtn { position:absolute; top:20px; right:20px; z-index:1003; width:50px; height:50px; border-radius:50%;
-  border:none; background:#007bff; color:white; font-size:24px; cursor:pointer; display:none; transition: all 0.3s; }
-#nextStepFullScreenBtn:hover { transform:scale(1.1); }
-
-#fullScreenSteps { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#222;
-  color:white; z-index:2000; overflow-y:auto; padding:20px; box-sizing:border-box; }
-#fullScreenSteps h2{margin-top:20px;}
 </style>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body class="light">
-<div id="versionTag">Version 1.12</div>
+<div id="versionTag">Version 1.13</div>
 
-<div id="searchBox" class="panel">
+<div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats" oninput="autocomplete()">
   <button id="searchBtn" onclick="searchPlace()"><i class="fa fa-search"></i></button>
   <button id="startNav" onclick="startNavigation()"><i class="fa fa-play"></i></button>
@@ -92,10 +69,7 @@ body.dark { background:#121212; color:white; }
 
 <div id="suggestions"></div>
 
-<div id="nextStep"><i class="fa fa-arrow-right"></i> <span id="nextStepText">Nästa steg</span></div>
-<button id="nextStepFullScreenBtn" onclick="openFullScreen()"><i class="fa fa-expand"></i></button>
-
-<div id="fullScreenSteps"><button onclick="closeFullScreen()">Stäng ✕</button><div id="stepsContainer"></div></div>
+<div id="nextStep"><i class="fa fa-arrow-up"></i></div>
 
 <div id="map"></div>
 <div id="bottomBar">
@@ -112,8 +86,8 @@ body.dark { background:#121212; color:white; }
 var map=L.map('map',{zoomControl:false, dragging:true, touchZoom:true, scrollWheelZoom:true}).setView([63.83,20.26],6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-var userIcon=L.divIcon({className:'pulsingMarker', iconSize:[20,20], iconAnchor:[10,10]});
-var userBlob=null, routeData=null, navActive=false, lastPos=null, routeMarkers=[];
+var routeData=null, navActive=false, lastPos=null, routeMarkers=[], routeLine=null;
+var userMarker=null;
 
 var routingControl=L.Routing.control({
   waypoints:[],
@@ -124,7 +98,7 @@ var routingControl=L.Routing.control({
   show:false
 }).addTo(map);
 
-// GPS position, blob uppdateras ENDAST med verklig GPS
+// GPS
 function updatePosition(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(function(pos){
@@ -133,14 +107,37 @@ function updatePosition(){
       lastPos=currentLatLng;
 
       if(navActive){
-        if(!userBlob) {
-          userBlob=L.marker(currentLatLng,{icon:userIcon}).addTo(map);
-          userBlob._icon.style.transform+=" scale(1.2)"; // pop microinteraction
-          setTimeout(()=>{ userBlob._icon.style.transform=userBlob._icon.style.transform.replace(" scale(1.2)",""); },200);
-        } else userBlob.setLatLng(currentLatLng);
-        updateNextInstruction(currentLatLng);
+        if(!userMarker){
+          userMarker=L.marker(currentLatLng,{rotationAngle:0}).addTo(map);
+        } else {
+          userMarker.setLatLng(currentLatLng);
+          if(routeData && routeData.coordinates){
+            // Räkna rotation mot nästa steg
+            let next=routeData.coordinates.find(c=>{
+              let dist=currentLatLng.distanceTo(L.latLng(c[1],c[0]));
+              return dist>1;
+            });
+            if(next){
+              let angle=Math.atan2(next[1]-lat,next[0]-lng)*180/Math.PI;
+              userMarker.setRotationAngle(angle);
+              document.getElementById('nextStep').firstChild.style.transform=`rotate(${angle}deg)`;
+            }
+          }
+        }
+
+        // Trim route: ta bort redan körd del
+        if(routeLine){
+          let coords=routeData.coordinates;
+          let index=coords.findIndex(c=>currentLatLng.distanceTo(L.latLng(c[1],c[0]))>1);
+          if(index>0){
+            coords=coords.slice(index);
+            routeLine.setLatLngs(coords.map(c=>[c[1],c[0]]));
+          }
+        }
+
         updateBottomBar([lat,lng]);
       }
+
       let speed=pos.coords.speed?(pos.coords.speed*3.6).toFixed(1):'--';
       document.getElementById('speed').textContent=speed;
     });
@@ -148,10 +145,8 @@ function updatePosition(){
 }
 setInterval(updatePosition,500);
 
-// Return to me
 function returnToMe(){ if(lastPos) map.flyTo(lastPos,map.getMaxZoom(),{animate:true}); }
 
-// Navigation start
 function startNavigation(){
   if(!routeData || !lastPos) return;
   navActive=true;
@@ -160,10 +155,9 @@ function startNavigation(){
   document.getElementById('endNav').style.display='inline-block';
   document.getElementById('returnBtn').style.display='inline-block';
   map.flyTo(lastPos,map.getMaxZoom(),{animate:true,duration:1.5});
-  if(!userBlob) userBlob=L.marker(lastPos,{icon:userIcon}).addTo(map);
+  if(!userMarker) userMarker=L.marker(lastPos,{rotationAngle:0}).addTo(map);
 }
 
-// Navigation end
 function endNavigation(){
   navActive=false;
   document.getElementById('bottomBar').classList.remove('show');
@@ -171,13 +165,11 @@ function endNavigation(){
   document.getElementById('returnBtn').style.display='none';
   document.getElementById('searchBox').classList.remove('hide');
   routingControl.setWaypoints([]);
-  routeMarkers.forEach(m=>map.removeLayer(m));
-  routeMarkers=[]; routeData=null;
-  document.getElementById('nextStep').style.display='none';
-  document.getElementById('nextStepFullScreenBtn').style.display='none';
+  routeMarkers.forEach(m=>map.removeLayer(m)); routeMarkers=[];
+  if(routeLine) map.removeLayer(routeLine); routeLine=null;
+  routeData=null;
 }
 
-// Search & route
 function searchPlace(){
   let query=document.getElementById('searchInput').value;
   if(!query || !lastPos) return;
@@ -194,6 +186,8 @@ function searchPlace(){
         routingControl.setWaypoints([startLatLng,destinationLatLng]);
         routingControl.on('routesfound', function(e){
           routeData = e.routes[0];
+          if(routeLine) map.removeLayer(routeLine);
+          routeLine=L.polyline(routeData.coordinates.map(c=>[c[1],c[0]]),{color:'blue',weight:5,opacity:0.6}).addTo(map);
           displayRouteInfo(routeData);
         });
 
@@ -203,23 +197,6 @@ function searchPlace(){
     });
 }
 
-// Next step
-function updateNextInstruction(currentLatLng){
-  if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
-  let closestIndex=0, minDist=Infinity;
-  routeData.coordinates.forEach((c,i)=>{
-    let d=currentLatLng.distanceTo(L.latLng(c[1],c[0]));
-    if(d<minDist){ minDist=d; closestIndex=i; }
-  });
-  let instrText = routeData.instructions && routeData.instructions[closestIndex] ? routeData.instructions[closestIndex].text : '';
-  let box=document.getElementById('nextStep');
-  let textSpan=document.getElementById('nextStepText');
-  let fullBtn=document.getElementById('nextStepFullScreenBtn');
-  if(instrText){ box.style.display='flex'; textSpan.textContent=instrText; fullBtn.style.display='block'; }
-  else { box.style.display='none'; fullBtn.style.display='none'; }
-}
-
-// Bottom-bar
 function displayRouteInfo(route){
   if(!route) return;
   let distance=route.summary.totalDistance/1000; 
@@ -229,6 +206,7 @@ function displayRouteInfo(route){
   document.getElementById('timeLeft').textContent=`${time.toFixed(0)} min`;
   document.getElementById('distanceLeft').textContent=`${distance.toFixed(1)} km`;
 }
+
 function updateBottomBar(currentPos){
   if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
   let currentLatLng=L.latLng(currentPos[0],currentPos[1]);
@@ -241,16 +219,6 @@ function updateBottomBar(currentPos){
   document.getElementById('timeLeft').textContent=`${timeLeft.toFixed(0)} min`;
   document.getElementById('distanceLeft').textContent=`${kmLeft.toFixed(1)} km`;
 }
-
-// Fullscreen steps
-function openFullScreen(){
-  let fs=document.getElementById('fullScreenSteps');
-  let container=document.getElementById('stepsContainer'); container.innerHTML='';
-  if(!routeData || !routeData.instructions) return;
-  routeData.instructions.forEach((inst,i)=>{ let h2=document.createElement('h2'); h2.textContent=`Steg ${i+1}: ${inst.text}`; container.appendChild(h2); });
-  fs.style.display='block';
-}
-function closeFullScreen(){ document.getElementById('fullScreenSteps').style.display='none'; }
 
 // Autocomplete
 function autocomplete(){
