@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>SaktaFram 1.14</title>
+<title>SaktaFram 1.12</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
@@ -32,11 +32,6 @@ body.dark { background:#121212; color:white; }
 #endNav { bottom:150px; right:20px; background:#dc3545; color:white; }
 #returnBtn { bottom:80px; right:20px; background:#007bff; color:white; }
 
-/* Next-step pil */
-#nextStep { position:absolute; top:50px; left:50%; transform:translateX(-50%);
-  width:60px; height:60px; z-index:1003; display:flex; align-items:center; justify-content:center; }
-#nextStep i { font-size:40px; color:#007bff; transition: transform 0.3s ease; }
-
 /* Bottom bar större */
 #bottomBar { position:absolute; bottom:-80px; left:0; width:100%; background: rgba(0,0,0,0.8); color:white;
   display:flex; justify-content: space-around; font-weight:bold; font-size:18px; z-index:1000;
@@ -55,7 +50,7 @@ body.dark { background:#121212; color:white; }
 </style>
 </head>
 <body class="light">
-<div id="versionTag">Version 1.14</div>
+<div id="versionTag">Version 1.12</div>
 
 <div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats" oninput="autocomplete()">
@@ -67,7 +62,6 @@ body.dark { background:#121212; color:white; }
 <button id="returnBtn" onclick="returnToMe()"><i class="fa fa-location-arrow"></i></button>
 
 <div id="suggestions"></div>
-<div id="nextStep"><i class="fa fa-arrow-up"></i></div>
 
 <div id="map"></div>
 <div id="bottomBar">
@@ -85,7 +79,7 @@ var map=L.map('map',{zoomControl:false, dragging:true, touchZoom:true, scrollWhe
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
 var routeData=null, navActive=false, lastPos=null, routeMarkers=[], routeLine=null;
-var userMarker=null;
+var userBlob=null;
 
 var routingControl=L.Routing.control({
   waypoints:[],
@@ -105,37 +99,26 @@ function updatePosition(){
       lastPos=currentLatLng;
 
       if(navActive){
-        if(!userMarker){
-          userMarker=L.marker(currentLatLng,{rotationAngle:0}).addTo(map);
-        } else {
-          userMarker.setLatLng(currentLatLng);
-          // Rotera pil mot nästa punkt
-          if(routeData && routeData.coordinates){
-            let next=routeData.coordinates.find(c=>currentLatLng.distanceTo(L.latLng(c[1],c[0]))>1);
-            if(next){
-              let angle=Math.atan2(next[1]-lat,next[0]-lng)*180/Math.PI;
-              userMarker.setRotationAngle(angle);
-              document.getElementById('nextStep').firstChild.style.transform=`rotate(${angle}deg)`;
-            }
-          }
+        if(!userBlob) userBlob=L.marker(currentLatLng).addTo(map);
+        else userBlob.setLatLng(currentLatLng);
+
+        // Trimma blå streck
+        if(routeLine){
+          let coords=routeData.coordinates.slice();
+          let index=coords.findIndex(c=>currentLatLng.distanceTo(L.latLng(c[1],c[0]))>1);
+          if(index>0) coords=coords.slice(index);
+          routeLine.setLatLngs(coords.map(c=>[c[1],c[0]]));
         }
-        trimRouteLine(currentLatLng);
+
         updateBottomBar([lat,lng]);
       }
+
       let speed=pos.coords.speed?(pos.coords.speed*3.6).toFixed(1):'--';
       document.getElementById('speed').textContent=speed;
     });
   }
 }
 setInterval(updatePosition,500);
-
-function trimRouteLine(currentLatLng){
-  if(!routeData || !routeData.coordinates || !routeLine) return;
-  let coords=routeData.coordinates.slice();
-  let index=coords.findIndex(c=>currentLatLng.distanceTo(L.latLng(c[1],c[0]))>1);
-  if(index>0) coords=coords.slice(index);
-  routeLine.setLatLngs(coords.map(c=>[c[1],c[0]]));
-}
 
 function returnToMe(){ if(lastPos) map.flyTo(lastPos,map.getMaxZoom(),{animate:true}); }
 
@@ -147,7 +130,7 @@ function startNavigation(){
   document.getElementById('endNav').style.display='inline-block';
   document.getElementById('returnBtn').style.display='inline-block';
   map.flyTo(lastPos,map.getMaxZoom(),{animate:true,duration:1.5});
-  if(!userMarker) userMarker=L.marker(lastPos,{rotationAngle:0}).addTo(map);
+  if(!userBlob) userBlob=L.marker(lastPos).addTo(map);
 }
 
 function endNavigation(){
