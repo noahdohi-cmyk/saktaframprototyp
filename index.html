@@ -4,94 +4,149 @@
   <title>SaktaFram</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
   <style>
     body, html { margin:0; padding:0; height:100%; }
     #map { height: 100%; width: 100%; }
     #searchBox {
       position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-      z-index: 1000; background: white; padding: 5px; border-radius: 5px;
+      z-index: 1000; background: white; padding: 8px; border-radius: 5px;
+      display: flex;
+      gap: 5px;
     }
-    #searchBox input { width: 200px; padding: 5px; }
-    #searchBox button { padding: 5px; }
+    #searchBox input { padding:5px; width:180px; }
+    #searchBox button { padding:5px; }
+    #bottomBar {
+      position: absolute; bottom:0; left:0; width:100%;
+      background: rgba(0,0,0,0.7); color:white; padding:8px;
+      font-family: sans-serif; display:flex; justify-content: space-around;
+      z-index: 1000;
+    }
   </style>
 </head>
 <body>
 <div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats, t.ex. ICA">
   <button onclick="searchPlace()">Sök</button>
+  <button id="startNav" onclick="startNavigation()" disabled>Påbörja</button>
 </div>
+
 <div id="map"></div>
+<div id="bottomBar" style="display:none;">
+  <div>Ankomst: <span id="arrivalTime">--:--</span></div>
+  <div>Tid kvar: <span id="timeLeft">-- min</span></div>
+  <div>Kvar: <span id="distanceLeft">-- km</span></div>
+</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
 <script>
-  // Skapa karta
-  var map = L.map('map').setView([63.83, 20.26], 6); // Sverige
+var map = L.map('map').setView([63.83, 20.26], 6); // Sverige
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-  }).addTo(map);
+var userMarker = L.marker([0,0]).addTo(map);
+var routingControl = L.Routing.control({
+  waypoints: [],
+  lineOptions: { styles: [{color: 'blue', opacity: 0.6, weight: 5}] },
+  router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+  routeWhileDragging: false,
+  addWaypoints: false,
+  show: false
+}).addTo(map);
 
-  // Marker för live-position
-  var userMarker = L.marker([0,0]).addTo(map);
+var routeData = null;
+var navActive = false;
 
-  // Hämta live-position
-  function updatePosition() {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(function(pos) {
-        var lat = pos.coords.latitude;
-        var lng = pos.coords.longitude;
-        userMarker.setLatLng([lat, lng]);
-        map.setView([lat, lng], 13);
-      });
-    } else {
-      alert("Geolocation stöds inte i denna webbläsare.");
-    }
+// Uppdatera live-position
+function updatePosition() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      var lat = pos.coords.latitude;
+      var lng = pos.coords.longitude;
+      userMarker.setLatLng([lat, lng]);
+      if(navActive){
+        map.panTo([lat,lng], {animate:true, duration:1});
+        updateBottomBar([lat,lng]);
+      }
+    });
   }
+}
+updatePosition();
+setInterval(updatePosition, 3000);
 
-  updatePosition();
-  setInterval(updatePosition, 5000); // uppdatera var 5:e sekund
+// Sök destination
+function searchPlace(){
+  var query = document.getElementById('searchInput').value;
+  if(!query) return;
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+    .then(resp=>resp.json())
+    .then(data=>{
+      if(data.length>0){
+        var lat = parseFloat(data[0].lat);
+        var lon = parseFloat(data[0].lon);
+        L.marker([lat, lon]).addTo(map).bindPopup(query).openPopup();
+        var currentPos = userMarker.getLatLng();
+        routingControl.setWaypoints([currentPos, L.latLng(lat, lon)]);
+        routingControl.on('routesfound', function(e){
+          routeData = e.routes[0];
+          displayRouteInfo(routeData);
+        });
+        document.getElementById('startNav').disabled = false;
+      } else {
+        alert("Plats hittades inte.");
+      }
+    });
+}
 
-  // Routing setup
-  var routingControl = L.Routing.control({
-    waypoints: [],
-    lineOptions: { styles: [{color: 'blue', opacity: 0.6, weight: 5}] },
-    router: L.Routing.osrmv1({
-      serviceUrl: 'https://router.project-osrm.org/route/v1'
-    }),
-    routeWhileDragging: true,
-    show: false
-  }).addTo(map);
+// Visa restid/distans/ankomst
+function displayRouteInfo(route){
+  var distance = route.summary.totalDistance/1000; // km
+  var time = distance/30*60; // minuter vid 30km/h
+  var now = new Date();
+  var arrival = new Date(now.getTime() + time*60000);
+  var hours = arrival.getHours().toString().padStart(2,'0');
+  var mins = arrival.getMinutes().toString().padStart(2,'0');
+  alert(`Distans: ${distance.toFixed(1)} km\nTid: ${time.toFixed(0)} min\nAnkomst: ${hours}:${mins}`);
+}
 
-  // Sökfunktion
-  function searchPlace() {
-    var query = document.getElementById('searchInput').value;
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
-      .then(response => response.json())
-      .then(data => {
-        if (data.length > 0) {
-          var lat = parseFloat(data[0].lat);
-          var lon = parseFloat(data[0].lon);
-          map.setView([lat, lon], 16);
-          L.marker([lat, lon]).addTo(map).bindPopup(query).openPopup();
+// Starta navigering
+function startNavigation(){
+  if(!routeData) return;
+  navActive = true;
+  document.getElementById('bottomBar').style.display='flex';
+  smoothZoom(userMarker.getLatLng(), 15);
+}
 
-          // Om live-position finns, sätt rutt
-          var currentPos = userMarker.getLatLng();
-          routingControl.setWaypoints([currentPos, L.latLng(lat, lon)]);
-        } else {
-          alert("Plats hittades inte.");
-        }
-      });
-  }
+// Smooth zoom till position
+function smoothZoom(latlng, zoom){
+  map.flyTo(latlng, zoom, {animate:true, duration:1.5});
+}
 
-  // Anpassa rutt till 30 km/h
-  routingControl.on('routesfound', function(e) {
-    var route = e.routes[0];
-    var distance = route.summary.totalDistance / 1000; // km
-    var time = distance / 30 * 60; // minuter vid 30 km/h
-    alert(`Restid med 30 km/h: ca ${time.toFixed(0)} minuter`);
-  });
+// Uppdatera bottom bar under körning
+function updateBottomBar(currentPos){
+  if(!routeData) return;
+  var routeCoords = routeData.coordinates;
+  var totalDistance = routeData.summary.totalDistance/1000; // km
+  // Enkel approx: avstånd kvar till mål
+  var lastPoint = routeCoords[routeCoords.length-1];
+  var R = 6371; // jordradie km
+  var dLat = (lastPoint[1]-currentPos.lng)*Math.PI/180;
+  var dLon = (lastPoint[0]-currentPos.lat)*Math.PI/180;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(currentPos.lat*Math.PI/180) * Math.cos(lastPoint[0]*Math.PI/180) * Math.sin(dLon/2)*Math.sin(dLon/2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  var kmLeft = R*c;
+
+  var timeLeft = kmLeft/30*60; // minuter
+  var now = new Date();
+  var arrival = new Date(now.getTime() + timeLeft*60000);
+  var hours = arrival.getHours().toString().padStart(2,'0');
+  var mins = arrival.getMinutes().toString().padStart(2,'0');
+
+  document.getElementById('arrivalTime').textContent = `${hours}:${mins}`;
+  document.getElementById('timeLeft').textContent = `${timeLeft.toFixed(0)} min`;
+  document.getElementById('distanceLeft').textContent = `${kmLeft.toFixed(1)} km`;
+}
 </script>
 </body>
 </html>
