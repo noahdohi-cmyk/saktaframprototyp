@@ -1,97 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>SaktaFram</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
-  <style>
-    html, body { margin:0; padding:0; height:100%; font-family:sans-serif; }
-    #map { height:100%; width:100%; }
+<title>SaktaFram</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+<style>
+html, body { margin:0; padding:0; height:100%; font-family:sans-serif; }
+#map { height:100%; width:100%; }
+body.light { background:#f0f0f0; }
+body.dark { background:#121212; color:white; }
 
-    body.light { background:#f0f0f0; }
-    body.dark { background:#121212; color:white; }
+#searchBox { position:absolute; top:20px; left:50%; transform:translateX(-50%); z-index:1000;
+  background: rgba(255,255,255,0.95); padding:12px; border-radius:12px; display:flex; gap:10px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.3); transition: opacity 0.4s ease; }
+#searchBox.hide { opacity:0; pointer-events:none; }
+#searchBox input { padding:8px 12px; width:200px; border-radius:8px; border:1px solid #ccc; font-size:16px; }
+#searchBox button { padding:8px 16px; border:none; border-radius:8px;
+  background:#007bff; color:white; font-weight:bold; cursor:pointer; transition: background 0.2s, opacity 0.4s; }
+#searchBox button:hover { background:#0056b3; }
 
-    #searchBox {
-      position:absolute; top:20px; left:50%; transform:translateX(-50%);
-      z-index:1000; background: rgba(255,255,255,0.95); padding:12px;
-      border-radius:12px; display:flex; gap:10px; box-shadow:0 4px 12px rgba(0,0,0,0.3);
-      transition: opacity 0.4s ease;
-    }
-    #searchBox.hide { opacity:0; pointer-events:none; }
-    #searchBox input { padding:8px 12px; width:200px; border-radius:8px; border:1px solid #ccc; font-size:16px; }
-    #searchBox button {
-      padding:8px 16px; border:none; border-radius:8px;
-      background:#007bff; color:white; font-weight:bold; cursor:pointer; transition: background 0.2s, opacity 0.4s;
-    }
-    #searchBox button:hover { background:#0056b3; }
+#startNav { display:none; opacity:0; }
+#endNav { position:absolute; bottom:150px; right:20px; z-index:1002; background:#dc3545;
+  color:white; font-weight:bold; border:none; border-radius:8px; padding:8px 16px; cursor:pointer; display:none; opacity:0;
+  transition: opacity 0.3s; }
+#endNav:hover { background:#a71d2a; }
 
-    #startNav, #endNav { display:none; opacity:0; }
-    #endNav {
-      position:absolute;
-      top:20px;
-      right:20px;
-      z-index:1002;
-      background:#dc3545; color:white; font-weight:bold; border:none; border-radius:8px;
-      padding:8px 16px; cursor:pointer; transition: opacity 0.3s;
-    }
-    #endNav:hover { background:#a71d2a; }
+#bottomBar { position:absolute; bottom:-60px; left:0; width:100%; background: rgba(0,0,0,0.8); color:white;
+  padding:12px; display:flex; justify-content: space-around; font-weight:bold; font-size:16px; z-index:1000;
+  border-top-left-radius:12px; border-top-right-radius:12px; transition: bottom 0.5s ease; }
+#bottomBar.show { bottom:0; }
 
-    #bottomBar {
-      position:absolute; bottom:-60px; left:0; width:100%;
-      background: rgba(0,0,0,0.8); color:white; padding:12px;
-      display:flex; justify-content: space-around; font-weight:bold;
-      font-size:16px; z-index:1000;
-      border-top-left-radius:12px; border-top-right-radius:12px;
-      transition: bottom 0.5s ease;
-    }
-    #bottomBar.show { bottom:0; }
+#versionTag { position:absolute; top:10px; left:10px; background: rgba(0,0,0,0.7); color:white;
+  padding:5px 10px; font-weight:bold; border-radius:5px; z-index:1001; }
 
-    #versionTag {
-      position:absolute; top:10px; left:10px;
-      background: rgba(0,0,0,0.7); color:white; padding:5px 10px;
-      font-weight:bold; border-radius:5px; z-index:1001;
-    }
+.pulsingMarker { width:20px; height:20px; background: rgba(0,150,255,0.7);
+  border-radius:50%; box-shadow:0 0 15px rgba(0,150,255,0.5); animation:pulse 1.2s infinite; }
+@keyframes pulse { 0%{transform:scale(0.8);opacity:0.7;} 50%{transform:scale(1.3);opacity:0.4;} 100%{transform:scale(0.8);opacity:0.7;} }
 
-    .pulsingMarker {
-      width:20px; height:20px;
-      background: rgba(0,150,255,0.7);
-      border-radius:50%;
-      box-shadow:0 0 15px rgba(0,150,255,0.5);
-      animation:pulse 1.2s infinite;
-    }
-    @keyframes pulse {
-      0% { transform: scale(0.8); opacity:0.7; }
-      50% { transform: scale(1.3); opacity:0.4; }
-      100% { transform: scale(0.8); opacity:0.7; }
-    }
+#suggestions { position:absolute; top:58px; left:50%; transform:translateX(-50%); background:white; z-index:1002;
+  border-radius:8px; width:220px; max-height:200px; overflow-y:auto; box-shadow:0 2px 8px rgba(0,0,0,0.3); display:none; }
+.suggestionItem { padding:6px 10px; cursor:pointer; }
+.suggestionItem:hover { background:#e0e0e0; }
 
-    #suggestions {
-      position:absolute; top:58px; left:50%; transform:translateX(-50%);
-      background:white; z-index:1002; border-radius:8px; width:220px;
-      max-height:200px; overflow-y:auto; box-shadow:0 2px 8px rgba(0,0,0,0.3); display:none;
-    }
-    .suggestionItem { padding:6px 10px; cursor:pointer; }
-    .suggestionItem:hover { background:#e0e0e0; }
+#returnBtn { position:absolute; bottom:80px; right:20px; z-index:1002; background:#007bff; color:white;
+  border:none; border-radius:50%; width:50px; height:50px; font-size:24px; display:none; cursor:pointer;
+  box-shadow:0 4px 12px rgba(0,0,0,0.3); transition: opacity 0.3s; }
 
-    #returnBtn {
-      position:absolute; bottom:80px; right:20px; z-index:1002;
-      background:#007bff; color:white; border:none; border-radius:50%; width:50px; height:50px;
-      font-size:24px; display:none; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.3);
-      transition: opacity 0.3s;
-    }
+#nextStep { position:absolute; top:90px; left:50%; transform:translateX(-50%); background: rgba(0,0,0,0.7);
+  color:white; padding:10px 16px; border-radius:12px; font-weight:bold; font-size:16px; z-index:1003; max-width:260px; text-align:center;
+  display:none; }
 
-    #nextStep {
-      position:absolute; top:90px; left:50%; transform:translateX(-50%);
-      background: rgba(0,0,0,0.7); color:white; padding:10px 16px;
-      border-radius:12px; font-weight:bold; font-size:16px;
-      z-index:1003; max-width:260px; text-align:center;
-      display:none;
-    }
-  </style>
+#fullScreenSteps { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#222;
+  color:white; z-index:2000; overflow-y:auto; padding:20px; box-sizing:border-box; }
+#fullScreenSteps h2{margin-top:20px;}
+#fullScreenBtn{margin-left:10px; padding:4px 8px; border:none; border-radius:6px; cursor:pointer; background:#007bff;color:white;}
+#fullScreenBtn:hover{background:#0056b3;}
+</style>
 </head>
 <body class="light">
-<div id="versionTag">Version 1.0</div>
+<div id="versionTag">Version 1.7</div>
 
 <div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats" oninput="autocomplete()">
@@ -102,10 +70,11 @@
 <button id="endNav" onclick="endNavigation()">Avsluta</button>
 <div id="suggestions"></div>
 <button id="returnBtn" onclick="returnToMe()">↑</button>
-<div id="nextStep">Nästa steg</div>
+
+<div id="nextStep">Nästa steg <button id="fullScreenBtn" onclick="openFullScreen()">📺</button></div>
+<div id="fullScreenSteps"><button onclick="closeFullScreen()">Stäng ✕</button><div id="stepsContainer"></div></div>
 
 <div id="map"></div>
-
 <div id="bottomBar">
   <div>Ankomst: <span id="arrivalTime">--:--</span></div>
   <div>Tid kvar: <span id="timeLeft">-- min</span></div>
@@ -118,13 +87,13 @@
 <script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
 
 <script>
-var map = L.map('map',{zoomControl:false, dragging:true, touchZoom:true, scrollWheelZoom:true, doubleClickZoom:false}).setView([63.83,20.26],6);
+var map=L.map('map',{zoomControl:false, dragging:true, touchZoom:true, scrollWheelZoom:true, doubleClickZoom:false}).setView([63.83,20.26],6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-var userIcon = L.divIcon({className:'pulsingMarker', iconSize:[20,20], iconAnchor:[10,10]});
-var userBlob=null, routeData=null, navActive=false, lastPos=null;
+var userIcon=L.divIcon({className:'pulsingMarker', iconSize:[20,20], iconAnchor:[10,10]});
+var userBlob=null, routeData=null, navActive=false, lastPos=null, routeMarkers=[];
 
-var routingControl = L.Routing.control({
+var routingControl=L.Routing.control({
   waypoints:[],
   lineOptions:{styles:[{color:'blue', opacity:0.6, weight:5}]},
   router:L.Routing.osrmv1({serviceUrl:'https://router.project-osrm.org/route/v1'}),
@@ -135,15 +104,13 @@ var routingControl = L.Routing.control({
 
 // Autocomplete
 function autocomplete(){
-  let query = document.getElementById('searchInput').value;
+  let query=document.getElementById('searchInput').value;
   if(!query){ document.getElementById('suggestions').style.display='none'; return; }
   fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&viewbox=${map.getBounds().toBBoxString()}&bounded=1`)
     .then(resp=>resp.json()).then(data=>{
-      let sug = document.getElementById('suggestions'); sug.innerHTML='';
+      let sug=document.getElementById('suggestions'); sug.innerHTML='';
       data.forEach(item=>{
-        let div = document.createElement('div');
-        div.className='suggestionItem';
-        div.textContent=item.display_name;
+        let div=document.createElement('div'); div.className='suggestionItem'; div.textContent=item.display_name;
         div.onclick=()=>{ document.getElementById('searchInput').value=item.display_name; sug.style.display='none'; searchPlace(); };
         sug.appendChild(div);
       });
@@ -151,31 +118,29 @@ function autocomplete(){
     });
 }
 
-// Live-position & blob
+// Position & Blob
 function updatePosition(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(function(pos){
       let lat=pos.coords.latitude, lng=pos.coords.longitude;
-      let currentLatLng = L.latLng(lat,lng);
+      let currentLatLng=L.latLng(lat,lng);
+      lastPos=currentLatLng;
 
-      if(!userBlob){ userBlob=L.marker(currentLatLng,{icon:userIcon, rotationAngle:0}).addTo(map); }
-      else{ userBlob.setLatLng(currentLatLng); }
-
-      let speed = pos.coords.speed? (pos.coords.speed*3.6).toFixed(1):'--';
-      document.getElementById('speed').textContent = speed;
-
-      if(navActive){
-        lastPos=currentLatLng;
-        updateBottomBar([lat,lng]);
+      if(navActive && userBlob){
+        userBlob.setLatLng(currentLatLng);
         updateMarkerRotation(currentLatLng);
         updateNextInstruction(currentLatLng);
+        updateBottomBar([lat,lng]);
       }
+
+      let speed=pos.coords.speed?(pos.coords.speed*3.6).toFixed(1):'--';
+      document.getElementById('speed').textContent=speed;
     });
   }
 }
 setInterval(updatePosition,500);
 
-// Rotation
+// Marker rotation
 function updateMarkerRotation(currentLatLng){
   if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
   let closestIndex=0, minDist=Infinity;
@@ -183,15 +148,13 @@ function updateMarkerRotation(currentLatLng){
     let d=currentLatLng.distanceTo(L.latLng(c[1],c[0]));
     if(d<minDist){ minDist=d; closestIndex=i; }
   });
-  let nextLatLng=L.latLng(
-    routeData.coordinates[Math.min(closestIndex+1,routeData.coordinates.length-1)][1],
-    routeData.coordinates[Math.min(closestIndex+1,routeData.coordinates.length-1)][0]
-  );
-  let angle = Math.atan2(nextLatLng.lng-currentLatLng.lng, nextLatLng.lat-currentLatLng.lat)*180/Math.PI;
+  let nextLatLng=L.latLng(routeData.coordinates[Math.min(closestIndex+1,routeData.coordinates.length-1)][1],
+                           routeData.coordinates[Math.min(closestIndex+1,routeData.coordinates.length-1)][0]);
+  let angle=Math.atan2(nextLatLng.lng-currentLatLng.lng, nextLatLng.lat-currentLatLng.lat)*180/Math.PI;
   userBlob.setRotationAngle(angle);
 }
 
-// Sök och sätt rutt
+// Search and route
 function searchPlace(){
   document.getElementById('suggestions').style.display='none';
   let query=document.getElementById('searchInput').value;
@@ -199,46 +162,44 @@ function searchPlace(){
   fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
     .then(resp=>resp.json()).then(data=>{
       if(data.length>0){
+        // Remove old markers
+        routeMarkers.forEach(m=>map.removeLayer(m)); routeMarkers=[];
         let lat=parseFloat(data[0].lat), lon=parseFloat(data[0].lon);
-        L.marker([lat,lon]).addTo(map).bindPopup(query).openPopup();
+        let m=L.marker([lat,lon]).addTo(map).bindPopup(query).openPopup(); routeMarkers.push(m);
 
-        let currentPos = userBlob.getLatLng();
+        let currentPos=userBlob?userBlob.getLatLng():L.latLng(lat,lon);
         routingControl.setWaypoints([currentPos,L.latLng(lat,lon)]);
-        routingControl.on('routesfound', function(e){ 
-          routeData=e.routes[0]; 
-          displayRouteInfo(routeData); 
-        });
+        routingControl.on('routesfound', function(e){ routeData=e.routes[0]; displayRouteInfo(routeData); });
 
         let startBtn=document.getElementById('startNav'); startBtn.style.display='inline-block';
         setTimeout(()=>startBtn.style.opacity=1,50);
-      } else { alert("Plats hittades inte."); }
+      } else alert("Plats hittades inte.");
     });
 }
 
-// Display next instruction
+// Next step
 function updateNextInstruction(currentLatLng){
-  if(!routeData || !routeData.instructions) return;
-  let closestIndex=0, minDist=Infinity;
+  if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
+  let closestIndex=0,minDist=Infinity;
   routeData.coordinates.forEach((c,i)=>{
     let d=currentLatLng.distanceTo(L.latLng(c[1],c[0]));
-    if(d<minDist){ minDist=d; closestIndex=i; }
+    if(d<minDist){minDist=d; closestIndex=i;}
   });
-  let instr = routeData.instructions.find(inst=>inst.index >= closestIndex);
+  let instrText=routeData.instructions && routeData.instructions[closestIndex]?routeData.instructions[closestIndex].text:'';
   let box=document.getElementById('nextStep');
-  if(instr){ box.textContent=instr.text; box.style.display='block'; }
+  if(instrText){ box.textContent=instrText+' '; document.getElementById('fullScreenBtn').style.display='inline-block'; box.style.display='block'; }
+  else box.style.display='none';
 }
 
 // Bottom-bar
 function displayRouteInfo(route){
   if(!route) return;
-  let distance=route.summary.totalDistance/1000;
-  let time=distance/30*60;
+  let distance=route.summary.totalDistance/1000; let time=distance/30*60;
   let now=new Date(), arrival=new Date(now.getTime()+time*60000);
   document.getElementById('arrivalTime').textContent=`${arrival.getHours().toString().padStart(2,'0')}:${arrival.getMinutes().toString().padStart(2,'0')}`;
   document.getElementById('timeLeft').textContent=`${time.toFixed(0)} min`;
   document.getElementById('distanceLeft').textContent=`${distance.toFixed(1)} km`;
 }
-
 function updateBottomBar(currentPos){
   if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
   let currentLatLng=L.latLng(currentPos[0],currentPos[1]);
@@ -246,23 +207,25 @@ function updateBottomBar(currentPos){
   let lastLatLng=L.latLng(lastPoint[1],lastPoint[0]);
   let kmLeft=currentLatLng.distanceTo(lastLatLng)/1000;
   let timeLeft=kmLeft/30*60;
-  let now=new Date();
-  let arrival=new Date(now.getTime()+timeLeft*60000);
+  let now=new Date(); let arrival=new Date(now.getTime()+timeLeft*60000);
   document.getElementById('arrivalTime').textContent=`${arrival.getHours().toString().padStart(2,'0')}:${arrival.getMinutes().toString().padStart(2,'0')}`;
   document.getElementById('timeLeft').textContent=`${timeLeft.toFixed(0)} min`;
   document.getElementById('distanceLeft').textContent=`${kmLeft.toFixed(1)} km`;
 }
 
-// Start / End navigation
+// Start/End navigation
 function startNavigation(){
   if(!routeData) return;
   navActive=true;
   document.getElementById('bottomBar').classList.add('show');
-  map.flyTo(userBlob.getLatLng(), map.getMaxZoom(), {animate:true, duration:1.5});
   document.getElementById('searchBox').classList.add('hide');
-  let endBtn=document.getElementById('endNav');
-  endBtn.style.display='inline-block';
+
+  let endBtn=document.getElementById('endNav'); endBtn.style.display='inline-block';
   setTimeout(()=>endBtn.style.opacity=1,50);
+
+  let targetPos=lastPos || map.getCenter();
+  map.flyTo(targetPos,map.getMaxZoom(),{animate:true,duration:1.5});
+  setTimeout(()=>{ if(!userBlob) userBlob=L.marker(targetPos,{icon:userIcon, rotationAngle:0}).addTo(map); },1600);
 }
 
 function endNavigation(){
@@ -271,18 +234,23 @@ function endNavigation(){
   let endBtn=document.getElementById('endNav'); endBtn.style.opacity=0;
   setTimeout(()=>endBtn.style.display='none',400);
   document.getElementById('searchBox').classList.remove('hide');
-  routingControl.setWaypoints([]);
-  routingControl.getPlan().setWaypoints([]);
+  routingControl.setWaypoints([]); routingControl.getPlan().setWaypoints([]);
   document.getElementById('nextStep').style.display='none';
+  // Remove markers
+  routeMarkers.forEach(m=>map.removeLayer(m)); routeMarkers=[];
 }
 
-// Return to me button
-function returnToMe(){
-  if(lastPos) map.flyTo(lastPos,map.getMaxZoom(),{animate:true});
-  document.getElementById('returnBtn').style.display='none';
-}
-
+function returnToMe(){ if(lastPos) map.flyTo(lastPos,map.getMaxZoom(),{animate:true}); document.getElementById('returnBtn').style.display='none'; }
 map.on('dragstart zoomstart', function(){ if(navActive) document.getElementById('returnBtn').style.display='block'; });
+
+// Fullscreen steps
+function openFullScreen(){
+  let fs=document.getElementById('fullScreenSteps'); let container=document.getElementById('stepsContainer'); container.innerHTML='';
+  if(!routeData || !routeData.instructions) return;
+  routeData.instructions.forEach((inst,i)=>{ let h2=document.createElement('h2'); h2.textContent=`Steg ${i+1}: ${inst.text}`; container.appendChild(h2); });
+  fs.style.display='block';
+}
+function closeFullScreen(){ document.getElementById('fullScreenSteps').style.display='none'; }
 
 </script>
 </body>
