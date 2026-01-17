@@ -62,7 +62,7 @@ body.dark { background:#121212; color:white; }
 </style>
 </head>
 <body class="light">
-<div id="versionTag">Version 1.9</div>
+<div id="versionTag">Version 1.10</div>
 
 <div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats" oninput="autocomplete()">
@@ -94,12 +94,13 @@ body.dark { background:#121212; color:white; }
 <script>
 var map=L.map('map',{zoomControl:false, dragging:true, touchZoom:true, scrollWheelZoom:true, doubleClickZoom:false}).setView([63.83,20.26],6);
 
-// Gratis tile-layer utan autentisering
+// Gratis tile-layer
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
 var userIcon=L.divIcon({className:'pulsingMarker', iconSize:[20,20], iconAnchor:[10,10]});
 var userBlob=null, routeData=null, navActive=false, lastPos=null, routeMarkers=[];
 
+// Routing
 var routingControl=L.Routing.control({
   waypoints:[],
   lineOptions:{styles:[{color:'blue', opacity:0.6, weight:5}]},
@@ -125,7 +126,7 @@ function autocomplete(){
     });
 }
 
-// Position & Blob (följer endast verklig GPS)
+// Position & blob
 function updatePosition(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(function(pos){
@@ -143,7 +144,6 @@ function updatePosition(){
           updateBottomBar([lat,lng]);
         }
       }
-
       let speed=pos.coords.speed?(pos.coords.speed*3.6).toFixed(1):'--';
       document.getElementById('speed').textContent=speed;
     });
@@ -165,11 +165,10 @@ function updateMarkerRotation(currentLatLng){
   userBlob.setRotationAngle(angle);
 }
 
-// Search and route
+// Search & route
 function searchPlace(){
-  document.getElementById('suggestions').style.display='none';
   let query=document.getElementById('searchInput').value;
-  if(!query) return;
+  if(!query || !lastPos) return;
   fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
     .then(resp=>resp.json()).then(data=>{
       if(data.length>0){
@@ -177,9 +176,14 @@ function searchPlace(){
         let lat=parseFloat(data[0].lat), lon=parseFloat(data[0].lon);
         let m=L.marker([lat,lon]).addTo(map).bindPopup(query).openPopup(); routeMarkers.push(m);
 
-        let currentPos=userBlob?userBlob.getLatLng():L.latLng(lat,lon);
-        routingControl.setWaypoints([currentPos,L.latLng(lat,lon)]);
-        routingControl.on('routesfound', function(e){ routeData=e.routes[0]; displayRouteInfo(routeData); });
+        let startLatLng = lastPos; // alltid verklig GPS
+        let destinationLatLng = L.latLng(lat,lon);
+
+        routingControl.setWaypoints([startLatLng, destinationLatLng]);
+        routingControl.on('routesfound', function(e){
+          routeData = e.routes[0];
+          displayRouteInfo(routeData);
+        });
 
         let startBtn=document.getElementById('startNav'); startBtn.style.display='inline-block';
         setTimeout(()=>startBtn.style.opacity=1,50);
@@ -190,33 +194,35 @@ function searchPlace(){
 // Next step
 function updateNextInstruction(currentLatLng){
   if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
-  let closestIndex=0,minDist=Infinity;
+  let closestIndex=0, minDist=Infinity;
   routeData.coordinates.forEach((c,i)=>{
     let d=currentLatLng.distanceTo(L.latLng(c[1],c[0]));
-    if(d<minDist){minDist=d; closestIndex=i;}
+    if(d<minDist){ minDist=d; closestIndex=i; }
   });
-  let instrText=routeData.instructions && routeData.instructions[closestIndex]?routeData.instructions[closestIndex].text:'';
-  let box=document.getElementById('nextStep');
-  let fullBtn=document.getElementById('nextStepFullScreenBtn');
+  let instrText = routeData.instructions && routeData.instructions[closestIndex] ? routeData.instructions[closestIndex].text : '';
+  let box = document.getElementById('nextStep');
+  let fullBtn = document.getElementById('nextStepFullScreenBtn');
   if(instrText){
-    box.textContent=instrText;
-    box.style.display='block';
-    fullBtn.style.display='block';
+    box.textContent = instrText;
+    box.style.display = 'block';
+    fullBtn.style.display = 'block';
   } else {
-    box.style.display='none';
-    fullBtn.style.display='none';
+    box.style.display = 'none';
+    fullBtn.style.display = 'none';
   }
 }
 
 // Bottom-bar
 function displayRouteInfo(route){
   if(!route) return;
-  let distance=route.summary.totalDistance/1000; let time=distance/30*60;
+  let distance=route.summary.totalDistance/1000; 
+  let time=distance/30*60;
   let now=new Date(), arrival=new Date(now.getTime()+time*60000);
   document.getElementById('arrivalTime').textContent=`${arrival.getHours().toString().padStart(2,'0')}:${arrival.getMinutes().toString().padStart(2,'0')}`;
   document.getElementById('timeLeft').textContent=`${time.toFixed(0)} min`;
   document.getElementById('distanceLeft').textContent=`${distance.toFixed(1)} km`;
 }
+
 function updateBottomBar(currentPos){
   if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
   let currentLatLng=L.latLng(currentPos[0],currentPos[1]);
@@ -230,19 +236,17 @@ function updateBottomBar(currentPos){
   document.getElementById('distanceLeft').textContent=`${kmLeft.toFixed(1)} km`;
 }
 
-// Start/End navigation
+// Start / End
 function startNavigation(){
-  if(!routeData) return;
+  if(!routeData || !lastPos) return;
   navActive=true;
   document.getElementById('bottomBar').classList.add('show');
   document.getElementById('searchBox').classList.add('hide');
-
   let endBtn=document.getElementById('endNav'); endBtn.style.display='inline-block';
   setTimeout(()=>endBtn.style.opacity=1,50);
 
-  let targetPos=lastPos || map.getCenter();
-  map.flyTo(targetPos,map.getMaxZoom(),{animate:true,duration:1.5});
-  setTimeout(()=>{ if(!userBlob) userBlob=L.marker(targetPos,{icon:userIcon, rotationAngle:0}).addTo(map); },1600);
+  map.flyTo(lastPos,map.getMaxZoom(),{animate:true,duration:1.5});
+  setTimeout(()=>{ if(!userBlob) userBlob=L.marker(lastPos,{icon:userIcon, rotationAngle:0}).addTo(map); },1600);
 }
 
 function endNavigation(){
