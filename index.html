@@ -25,8 +25,16 @@
       background:#007bff; color:white; font-weight:bold; cursor:pointer; transition: background 0.2s, opacity 0.4s;
     }
     #searchBox button:hover { background:#0056b3; }
+
     #startNav, #endNav { display:none; opacity:0; }
-    #endNav { background:#dc3545; }
+    #endNav {
+      position:absolute;
+      top:20px;
+      right:20px;
+      z-index:1002;
+      background:#dc3545; color:white; font-weight:bold; border:none; border-radius:8px;
+      padding:8px 16px; cursor:pointer; transition: opacity 0.3s;
+    }
     #endNav:hover { background:#a71d2a; }
 
     #bottomBar {
@@ -72,19 +80,29 @@
       font-size:24px; display:none; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.3);
       transition: opacity 0.3s;
     }
+
+    #nextStep {
+      position:absolute; top:90px; left:50%; transform:translateX(-50%);
+      background: rgba(0,0,0,0.7); color:white; padding:10px 16px;
+      border-radius:12px; font-weight:bold; font-size:16px;
+      z-index:1003; max-width:260px; text-align:center;
+      display:none;
+    }
   </style>
 </head>
 <body class="light">
-<div id="versionTag">Version 1.6</div>
+<div id="versionTag">Version 1.0</div>
 
 <div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats" oninput="autocomplete()">
   <button id="searchBtn" onclick="searchPlace()">Sök</button>
   <button id="startNav" onclick="startNavigation()">Påbörja</button>
-  <button id="endNav" onclick="endNavigation()">Avsluta</button>
 </div>
+
+<button id="endNav" onclick="endNavigation()">Avsluta</button>
 <div id="suggestions"></div>
 <button id="returnBtn" onclick="returnToMe()">↑</button>
+<div id="nextStep">Nästa steg</div>
 
 <div id="map"></div>
 
@@ -104,8 +122,7 @@ var map = L.map('map',{zoomControl:false, dragging:true, touchZoom:true, scrollW
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
 var userIcon = L.divIcon({className:'pulsingMarker', iconSize:[20,20], iconAnchor:[10,10]});
-var userBlob = null;
-var routeData=null, navActive=false, lastPos=null;
+var userBlob=null, routeData=null, navActive=false, lastPos=null;
 
 var routingControl = L.Routing.control({
   waypoints:[],
@@ -134,7 +151,7 @@ function autocomplete(){
     });
 }
 
-// Live-position
+// Live-position & blob
 function updatePosition(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(function(pos){
@@ -151,12 +168,14 @@ function updatePosition(){
         lastPos=currentLatLng;
         updateBottomBar([lat,lng]);
         updateMarkerRotation(currentLatLng);
+        updateNextInstruction(currentLatLng);
       }
     });
   }
 }
 setInterval(updatePosition,500);
 
+// Rotation
 function updateMarkerRotation(currentLatLng){
   if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
   let closestIndex=0, minDist=Infinity;
@@ -172,6 +191,7 @@ function updateMarkerRotation(currentLatLng){
   userBlob.setRotationAngle(angle);
 }
 
+// Sök och sätt rutt
 function searchPlace(){
   document.getElementById('suggestions').style.display='none';
   let query=document.getElementById('searchInput').value;
@@ -184,7 +204,10 @@ function searchPlace(){
 
         let currentPos = userBlob.getLatLng();
         routingControl.setWaypoints([currentPos,L.latLng(lat,lon)]);
-        routingControl.on('routesfound', function(e){ routeData=e.routes[0]; displayRouteInfo(routeData); });
+        routingControl.on('routesfound', function(e){ 
+          routeData=e.routes[0]; 
+          displayRouteInfo(routeData); 
+        });
 
         let startBtn=document.getElementById('startNav'); startBtn.style.display='inline-block';
         setTimeout(()=>startBtn.style.opacity=1,50);
@@ -192,6 +215,20 @@ function searchPlace(){
     });
 }
 
+// Display next instruction
+function updateNextInstruction(currentLatLng){
+  if(!routeData || !routeData.instructions) return;
+  let closestIndex=0, minDist=Infinity;
+  routeData.coordinates.forEach((c,i)=>{
+    let d=currentLatLng.distanceTo(L.latLng(c[1],c[0]));
+    if(d<minDist){ minDist=d; closestIndex=i; }
+  });
+  let instr = routeData.instructions.find(inst=>inst.index >= closestIndex);
+  let box=document.getElementById('nextStep');
+  if(instr){ box.textContent=instr.text; box.style.display='block'; }
+}
+
+// Bottom-bar
 function displayRouteInfo(route){
   if(!route) return;
   let distance=route.summary.totalDistance/1000;
@@ -201,34 +238,6 @@ function displayRouteInfo(route){
   document.getElementById('timeLeft').textContent=`${time.toFixed(0)} min`;
   document.getElementById('distanceLeft').textContent=`${distance.toFixed(1)} km`;
 }
-
-function startNavigation(){
-  if(!routeData) return;
-  navActive=true;
-  document.getElementById('bottomBar').classList.add('show');
-  map.flyTo(userBlob.getLatLng(), map.getMaxZoom(), {animate:true, duration:1.5});
-  document.getElementById('searchBox').classList.add('hide');
-  document.getElementById('endNav').style.display='inline-block';
-  setTimeout(()=>document.getElementById('endNav').style.opacity=1,50);
-}
-
-function endNavigation(){
-  navActive=false;
-  routeData=null;
-  document.getElementById('bottomBar').classList.remove('show');
-  document.getElementById('endNav').style.opacity=0;
-  setTimeout(()=>document.getElementById('endNav').style.display='none',400);
-  document.getElementById('searchBox').classList.remove('hide');
-  routingControl.setWaypoints([]);
-  routingControl.getPlan().setWaypoints([]);
-}
-
-function returnToMe(){
-  if(lastPos) map.flyTo(lastPos,map.getMaxZoom(),{animate:true});
-  document.getElementById('returnBtn').style.display='none';
-}
-
-map.on('dragstart zoomstart', function(){ if(navActive) document.getElementById('returnBtn').style.display='block'; });
 
 function updateBottomBar(currentPos){
   if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
@@ -243,6 +252,38 @@ function updateBottomBar(currentPos){
   document.getElementById('timeLeft').textContent=`${timeLeft.toFixed(0)} min`;
   document.getElementById('distanceLeft').textContent=`${kmLeft.toFixed(1)} km`;
 }
+
+// Start / End navigation
+function startNavigation(){
+  if(!routeData) return;
+  navActive=true;
+  document.getElementById('bottomBar').classList.add('show');
+  map.flyTo(userBlob.getLatLng(), map.getMaxZoom(), {animate:true, duration:1.5});
+  document.getElementById('searchBox').classList.add('hide');
+  let endBtn=document.getElementById('endNav');
+  endBtn.style.display='inline-block';
+  setTimeout(()=>endBtn.style.opacity=1,50);
+}
+
+function endNavigation(){
+  navActive=false; routeData=null;
+  document.getElementById('bottomBar').classList.remove('show');
+  let endBtn=document.getElementById('endNav'); endBtn.style.opacity=0;
+  setTimeout(()=>endBtn.style.display='none',400);
+  document.getElementById('searchBox').classList.remove('hide');
+  routingControl.setWaypoints([]);
+  routingControl.getPlan().setWaypoints([]);
+  document.getElementById('nextStep').style.display='none';
+}
+
+// Return to me button
+function returnToMe(){
+  if(lastPos) map.flyTo(lastPos,map.getMaxZoom(),{animate:true});
+  document.getElementById('returnBtn').style.display='none';
+}
+
+map.on('dragstart zoomstart', function(){ if(navActive) document.getElementById('returnBtn').style.display='block'; });
+
 </script>
 </body>
 </html>
