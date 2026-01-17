@@ -2,29 +2,60 @@
 <html>
 <head>
   <title>SaktaFram</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
   <style>
-    body, html { margin:0; padding:0; height:100%; }
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; }
     #map { height: 100%; width: 100%; }
+
     #searchBox {
       position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
       z-index: 1000; background: white; padding: 8px; border-radius: 5px;
-      display: flex;
-      gap: 5px;
+      display: flex; gap: 5px;
     }
     #searchBox input { padding:5px; width:180px; }
     #searchBox button { padding:5px; }
+
     #bottomBar {
       position: absolute; bottom:0; left:0; width:100%;
       background: rgba(0,0,0,0.7); color:white; padding:8px;
       font-family: sans-serif; display:flex; justify-content: space-around;
       z-index: 1000;
     }
+
+    #versionTag {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 5px 8px;
+      font-weight: bold;
+      border-radius: 5px;
+      z-index: 1001;
+      font-family: sans-serif;
+    }
+
+    /* Pulserande blob */
+    .pulsingMarker {
+      width: 20px;
+      height: 20px;
+      background: rgba(0, 150, 255, 0.7);
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(0,150,255,0.5);
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.8); opacity: 0.7; }
+      50% { transform: scale(1.3); opacity: 0.4; }
+      100% { transform: scale(0.8); opacity: 0.7; }
+    }
   </style>
 </head>
 <body>
+<div id="versionTag">Version 1.0</div>
+
 <div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats, t.ex. ICA">
   <button onclick="searchPlace()">Sök</button>
@@ -32,6 +63,7 @@
 </div>
 
 <div id="map"></div>
+
 <div id="bottomBar" style="display:none;">
   <div>Ankomst: <span id="arrivalTime">--:--</span></div>
   <div>Tid kvar: <span id="timeLeft">-- min</span></div>
@@ -40,12 +72,23 @@
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+<script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
 
 <script>
-var map = L.map('map').setView([63.83, 20.26], 6); // Sverige
+var map = L.map('map', {
+  zoomControl: false,
+  dragging: true,
+  touchZoom: true,
+  scrollWheelZoom: false,
+  doubleClickZoom: false
+}).setView([63.83, 20.26], 6);
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-var userMarker = L.marker([0,0]).addTo(map);
+// Pulserande markör med rotation
+var userIcon = L.divIcon({ className: 'pulsingMarker', iconSize: [20, 20] });
+var userMarker = L.marker([0,0], {icon: userIcon, rotationAngle:0}).addTo(map);
+
 var routingControl = L.Routing.control({
   waypoints: [],
   lineOptions: { styles: [{color: 'blue', opacity: 0.6, weight: 5}] },
@@ -58,22 +101,35 @@ var routingControl = L.Routing.control({
 var routeData = null;
 var navActive = false;
 
-// Uppdatera live-position
+// Uppdatera live-position och marker rotation
 function updatePosition() {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(function(pos) {
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(function(pos){
       var lat = pos.coords.latitude;
       var lng = pos.coords.longitude;
-      userMarker.setLatLng([lat, lng]);
+      var currentLatLng = L.latLng(lat, lng);
+      userMarker.setLatLng(currentLatLng);
+
       if(navActive){
-        map.panTo([lat,lng], {animate:true, duration:1});
+        map.setView(currentLatLng, map.getZoom(), {animate:true});
         updateBottomBar([lat,lng]);
+        updateMarkerRotation(currentLatLng);
       }
     });
   }
 }
-updatePosition();
-setInterval(updatePosition, 3000);
+setInterval(updatePosition, 500);
+
+// Rotation av markör mot nästa punkt
+function updateMarkerRotation(currentLatLng){
+  if(!routeData) return;
+  var coords = routeData.coordinates;
+  if(coords.length < 2) return;
+  var next = coords[1];
+  var nextLatLng = L.latLng(next[1], next[0]);
+  var angle = Math.atan2(nextLatLng.lng - currentLatLng.lng, nextLatLng.lat - currentLatLng.lat) * 180/Math.PI;
+  userMarker.setRotationAngle(angle);
+}
 
 // Sök destination
 function searchPlace(){
@@ -101,8 +157,8 @@ function searchPlace(){
 
 // Visa restid/distans/ankomst
 function displayRouteInfo(route){
-  var distance = route.summary.totalDistance/1000; // km
-  var time = distance/30*60; // minuter vid 30km/h
+  var distance = route.summary.totalDistance/1000;
+  var time = distance/30*60;
   var now = new Date();
   var arrival = new Date(now.getTime() + time*60000);
   var hours = arrival.getHours().toString().padStart(2,'0');
@@ -115,29 +171,18 @@ function startNavigation(){
   if(!routeData) return;
   navActive = true;
   document.getElementById('bottomBar').style.display='flex';
-  smoothZoom(userMarker.getLatLng(), 15);
+  map.flyTo(userMarker.getLatLng(), 18, {animate:true, duration:2});
 }
 
-// Smooth zoom till position
-function smoothZoom(latlng, zoom){
-  map.flyTo(latlng, zoom, {animate:true, duration:1.5});
-}
-
-// Uppdatera bottom bar under körning
+// Uppdatera bottom bar med korrekt avstånd
 function updateBottomBar(currentPos){
   if(!routeData) return;
-  var routeCoords = routeData.coordinates;
-  var totalDistance = routeData.summary.totalDistance/1000; // km
-  // Enkel approx: avstånd kvar till mål
-  var lastPoint = routeCoords[routeCoords.length-1];
-  var R = 6371; // jordradie km
-  var dLat = (lastPoint[1]-currentPos.lng)*Math.PI/180;
-  var dLon = (lastPoint[0]-currentPos.lat)*Math.PI/180;
-  var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(currentPos.lat*Math.PI/180) * Math.cos(lastPoint[0]*Math.PI/180) * Math.sin(dLon/2)*Math.sin(dLon/2);
-  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  var kmLeft = R*c;
-
-  var timeLeft = kmLeft/30*60; // minuter
+  var currentLatLng = L.latLng(currentPos[0], currentPos[1]);
+  var lastPoint = routeData.coordinates[routeData.coordinates.length-1];
+  var lastLatLng = L.latLng(lastPoint[1], lastPoint[0]);
+  
+  var kmLeft = currentLatLng.distanceTo(lastLatLng)/1000;
+  var timeLeft = kmLeft/30*60;
   var now = new Date();
   var arrival = new Date(now.getTime() + timeLeft*60000);
   var hours = arrival.getHours().toString().padStart(2,'0');
