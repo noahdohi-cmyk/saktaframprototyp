@@ -9,66 +9,75 @@
     html, body { margin:0; padding:0; height:100%; overflow:hidden; font-family:sans-serif; }
     #map { height: 100%; width: 100%; }
 
-    /* UI box överst */
+    /* Sök och påbörja UI */
     #searchBox {
-      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-      z-index: 1000; background: rgba(255,255,255,0.9); padding: 10px; border-radius: 10px;
-      display: flex; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 1000; background: rgba(255,255,255,0.95);
+      padding: 12px; border-radius: 12px; display: flex; gap: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: opacity 0.4s ease;
     }
-    #searchBox input { padding:6px 8px; width:180px; border-radius:5px; border:1px solid #ccc; }
+    #searchBox.hide { opacity:0; pointer-events:none; }
+
+    #searchBox input {
+      padding: 8px 12px; width:200px; border-radius:8px; border:1px solid #ccc;
+      font-size:16px;
+    }
     #searchBox button {
-      padding:6px 12px; border:none; border-radius:5px;
-      background: #007bff; color:white; font-weight:bold;
-      cursor:pointer; transition: background 0.2s;
+      padding: 8px 16px; border:none; border-radius:8px;
+      background:#007bff; color:white; font-weight:bold;
+      cursor:pointer; transition: background 0.2s, opacity 0.4s;
     }
-    #searchBox button:hover { background: #0056b3; }
+    #searchBox button:hover { background:#0056b3; }
 
+    #startNav { display:none; opacity:0; }
+
+    /* Bottom-bar */
     #bottomBar {
-      position: absolute; bottom:0; left:0; width:100%;
-      background: rgba(0,0,0,0.75); color:white; padding:10px;
+      position: absolute; bottom:-60px; left:0; width:100%;
+      background: rgba(0,0,0,0.8); color:white; padding:12px;
       display:flex; justify-content: space-around; font-weight:bold;
-      z-index: 1000; font-size:16px;
+      font-size:16px; z-index:1000;
+      border-top-left-radius:12px; border-top-right-radius:12px;
+      transition: bottom 0.5s ease;
     }
+    #bottomBar.show { bottom:0; }
 
+    /* Version */
     #versionTag {
-      position: absolute;
-      top: 10px; left: 10px;
-      background: rgba(0,0,0,0.7);
-      color: white;
-      padding: 5px 10px;
-      font-weight: bold;
-      border-radius: 5px;
-      z-index: 1001;
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(0,0,0,0.7); color:white;
+      padding: 5px 10px; font-weight: bold;
+      border-radius: 5px; z-index: 1001;
     }
 
     /* Pulserande blob */
     .pulsingMarker {
-      width: 20px;
-      height: 20px;
+      width: 20px; height: 20px;
       background: rgba(0, 150, 255, 0.7);
       border-radius: 50%;
       box-shadow: 0 0 15px rgba(0,150,255,0.5);
       animation: pulse 1.2s infinite;
     }
     @keyframes pulse {
-      0% { transform: scale(0.8); opacity: 0.7; }
-      50% { transform: scale(1.3); opacity: 0.4; }
-      100% { transform: scale(0.8); opacity: 0.7; }
+      0% { transform: scale(0.8); opacity:0.7; }
+      50% { transform: scale(1.3); opacity:0.4; }
+      100% { transform: scale(0.8); opacity:0.7; }
     }
   </style>
 </head>
 <body>
-<div id="versionTag">Version 1.1</div>
+
+<div id="versionTag">Version 1.0</div>
 
 <div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats, t.ex. ICA">
   <button id="searchBtn" onclick="searchPlace()">Sök</button>
-  <button id="startNav" onclick="startNavigation()" style="display:none;">Påbörja</button>
+  <button id="startNav" onclick="startNavigation()">Påbörja</button>
 </div>
 
 <div id="map"></div>
 
-<div id="bottomBar" style="display:none;">
+<div id="bottomBar">
   <div>Ankomst: <span id="arrivalTime">--:--</span></div>
   <div>Tid kvar: <span id="timeLeft">-- min</span></div>
   <div>Kvar: <span id="distanceLeft">-- km</span></div>
@@ -79,59 +88,59 @@
 <script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
 
 <script>
-var map = L.map('map', {
-  zoomControl: false,
-  dragging: true,
-  touchZoom: true,
-  scrollWheelZoom: true,
-  doubleClickZoom: false
-}).setView([63.83, 20.26], 6);
+var map = L.map('map',{
+  zoomControl:false, dragging:true, touchZoom:true,
+  scrollWheelZoom:true, doubleClickZoom:false
+}).setView([63.83,20.26],6);
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-// Pulserande markör med rotation
-var userIcon = L.divIcon({ className: 'pulsingMarker', iconSize: [20, 20] });
-var userMarker = L.marker([0,0], {icon: userIcon, rotationAngle:0}).addTo(map);
+// Pulserande marker, initieras senare
+var userIcon = L.divIcon({className:'pulsingMarker', iconSize:[20,20]});
+var userMarker = null;
 
 var routingControl = L.Routing.control({
-  waypoints: [],
-  lineOptions: { styles: [{color: 'blue', opacity: 0.6, weight: 5}] },
-  router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
-  routeWhileDragging: false,
-  addWaypoints: false,
-  show: false
+  waypoints:[],
+  lineOptions:{styles:[{color:'blue', opacity:0.6, weight:5}]},
+  router:L.Routing.osrmv1({ serviceUrl:'https://router.project-osrm.org/route/v1'}),
+  routeWhileDragging:false,
+  addWaypoints:false,
+  show:false
 }).addTo(map);
 
 var routeData = null;
 var navActive = false;
 
-// Live-position var 0,5 sek
+// Live-position
 function updatePosition(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(function(pos){
       var lat = pos.coords.latitude;
       var lng = pos.coords.longitude;
-      var currentLatLng = L.latLng(lat, lng);
-      userMarker.setLatLng(currentLatLng);
+      var currentLatLng = L.latLng(lat,lng);
+
+      if(!userMarker){
+        userMarker = L.marker(currentLatLng,{icon:userIcon, rotationAngle:0}).addTo(map);
+      } else {
+        userMarker.setLatLng(currentLatLng);
+      }
 
       if(navActive){
-        map.setView(currentLatLng, map.getZoom(), {animate:true});
+        map.setView(currentLatLng,map.getMaxZoom(),{animate:true});
         updateBottomBar([lat,lng]);
         updateMarkerRotation(currentLatLng);
       }
     });
   }
 }
-setInterval(updatePosition, 500);
+setInterval(updatePosition,500);
 
-// Markör rotation mot nästa punkt
+// Markör rotation
 function updateMarkerRotation(currentLatLng){
-  if(!routeData) return;
-  var coords = routeData.coordinates;
-  if(coords.length < 2) return;
-  var next = coords[1];
-  var nextLatLng = L.latLng(next[1], next[0]);
-  var angle = Math.atan2(nextLatLng.lng - currentLatLng.lng, nextLatLng.lat - currentLatLng.lat) * 180/Math.PI;
+  if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
+  var next = routeData.coordinates[1];
+  var nextLatLng = L.latLng(next[1],next[0]);
+  var angle = Math.atan2(nextLatLng.lng-currentLatLng.lng, nextLatLng.lat-currentLatLng.lat)*180/Math.PI;
   userMarker.setRotationAngle(angle);
 }
 
@@ -143,64 +152,66 @@ function searchPlace(){
     .then(resp=>resp.json())
     .then(data=>{
       if(data.length>0){
-        var lat = parseFloat(data[0].lat);
-        var lon = parseFloat(data[0].lon);
-        L.marker([lat, lon]).addTo(map).bindPopup(query).openPopup();
+        var lat=parseFloat(data[0].lat);
+        var lon=parseFloat(data[0].lon);
+        L.marker([lat,lon]).addTo(map).bindPopup(query).openPopup();
 
         var currentPos = userMarker.getLatLng();
-        routingControl.setWaypoints([currentPos, L.latLng(lat, lon)]);
-        routingControl.on('routesfound', function(e){
+        routingControl.setWaypoints([currentPos,L.latLng(lat,lon)]);
+        routingControl.on('routesfound',function(e){
           routeData = e.routes[0];
           displayRouteInfo(routeData);
         });
 
-        // Visa Påbörja knapp och göm sök
-        document.getElementById('startNav').style.display = "inline-block";
-      } else {
-        alert("Plats hittades inte.");
-      }
+        // Visa Påbörja-knapp med fade-in
+        var startBtn = document.getElementById('startNav');
+        startBtn.style.display='inline-block';
+        setTimeout(()=>startBtn.style.opacity=1,50);
+      } else { alert("Plats hittades inte."); }
     });
 }
 
-// Visa restid/distans/ankomst
+// Visa distans, tid, ankomst
 function displayRouteInfo(route){
+  if(!route) return;
   var distance = route.summary.totalDistance/1000;
   var time = distance/30*60;
   var now = new Date();
-  var arrival = new Date(now.getTime() + time*60000);
+  var arrival = new Date(now.getTime()+time*60000);
   var hours = arrival.getHours().toString().padStart(2,'0');
   var mins = arrival.getMinutes().toString().padStart(2,'0');
   alert(`Distans: ${distance.toFixed(1)} km\nTid: ${time.toFixed(0)} min\nAnkomst: ${hours}:${mins}`);
 }
 
-// Starta navigation
+// Start navigation
 function startNavigation(){
   if(!routeData) return;
-  navActive = true;
+  navActive=true;
 
-  // Visa bottom-bar
-  document.getElementById('bottomBar').style.display='flex';
+  // Visa bottom-bar med slide-up
+  var bar = document.getElementById('bottomBar');
+  bar.classList.add('show');
 
-  // Hög zoom
+  // Zoom max
   map.flyTo(userMarker.getLatLng(), map.getMaxZoom(), {animate:true, duration:1.5});
 
-  // Dölj sök och Påbörja
-  document.getElementById('searchBox').style.display='none';
+  // Dölj search-box
+  document.getElementById('searchBox').classList.add('hide');
 }
 
-// Uppdatera bottom-bar
+// Bottom-bar uppdatering
 function updateBottomBar(currentPos){
-  if(!routeData) return;
-  var currentLatLng = L.latLng(currentPos[0], currentPos[1]);
-  var lastPoint = routeData.coordinates[routeData.coordinates.length-1];
-  var lastLatLng = L.latLng(lastPoint[1], lastPoint[0]);
-
+  if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
+  var currentLatLng=L.latLng(currentPos[0],currentPos[1]);
+  var lastPoint=routeData.coordinates[routeData.coordinates.length-1];
+  var lastLatLng=L.latLng(lastPoint[1],lastPoint[0]);
   var kmLeft = currentLatLng.distanceTo(lastLatLng)/1000;
   var timeLeft = kmLeft/30*60;
+
   var now = new Date();
-  var arrival = new Date(now.getTime() + timeLeft*60000);
-  var hours = arrival.getHours().toString().padStart(2,'0');
-  var mins = arrival.getMinutes().toString().padStart(2,'0');
+  var arrival = new Date(now.getTime()+timeLeft*60000);
+  var hours=arrival.getHours().toString().padStart(2,'0');
+  var mins=arrival.getMinutes().toString().padStart(2,'0');
 
   document.getElementById('arrivalTime').textContent = `${hours}:${mins}`;
   document.getElementById('timeLeft').textContent = `${timeLeft.toFixed(0)} min`;
