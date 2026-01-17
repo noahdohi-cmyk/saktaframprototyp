@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>SaktaFram 1.13</title>
+<title>SaktaFram 1.14</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
@@ -9,10 +9,10 @@
 <style>
 html, body { margin:0; padding:0; height:100%; font-family:sans-serif; }
 #map { height:100%; width:100%; }
-
 body.light { background:#f0f0f0; }
 body.dark { background:#121212; color:white; }
 
+/* Sökpanel */
 #searchBox {
   position:absolute; top:20px; left:50%; transform:translateX(-50%);
   display:flex; gap:10px; z-index:1000; background:rgba(255,255,255,0.8); backdrop-filter:blur(8px);
@@ -52,11 +52,10 @@ body.dark { background:#121212; color:white; }
   border-radius:8px; width:220px; max-height:200px; overflow-y:auto; box-shadow:0 2px 8px rgba(0,0,0,0.3); display:none; }
 .suggestionItem { padding:6px 10px; cursor:pointer; }
 .suggestionItem:hover { background:#e0e0e0; }
-
 </style>
 </head>
 <body class="light">
-<div id="versionTag">Version 1.13</div>
+<div id="versionTag">Version 1.14</div>
 
 <div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats" oninput="autocomplete()">
@@ -68,7 +67,6 @@ body.dark { background:#121212; color:white; }
 <button id="returnBtn" onclick="returnToMe()"><i class="fa fa-location-arrow"></i></button>
 
 <div id="suggestions"></div>
-
 <div id="nextStep"><i class="fa fa-arrow-up"></i></div>
 
 <div id="map"></div>
@@ -111,12 +109,9 @@ function updatePosition(){
           userMarker=L.marker(currentLatLng,{rotationAngle:0}).addTo(map);
         } else {
           userMarker.setLatLng(currentLatLng);
+          // Rotera pil mot nästa punkt
           if(routeData && routeData.coordinates){
-            // Räkna rotation mot nästa steg
-            let next=routeData.coordinates.find(c=>{
-              let dist=currentLatLng.distanceTo(L.latLng(c[1],c[0]));
-              return dist>1;
-            });
+            let next=routeData.coordinates.find(c=>currentLatLng.distanceTo(L.latLng(c[1],c[0]))>1);
             if(next){
               let angle=Math.atan2(next[1]-lat,next[0]-lng)*180/Math.PI;
               userMarker.setRotationAngle(angle);
@@ -124,26 +119,23 @@ function updatePosition(){
             }
           }
         }
-
-        // Trim route: ta bort redan körd del
-        if(routeLine){
-          let coords=routeData.coordinates;
-          let index=coords.findIndex(c=>currentLatLng.distanceTo(L.latLng(c[1],c[0]))>1);
-          if(index>0){
-            coords=coords.slice(index);
-            routeLine.setLatLngs(coords.map(c=>[c[1],c[0]]));
-          }
-        }
-
+        trimRouteLine(currentLatLng);
         updateBottomBar([lat,lng]);
       }
-
       let speed=pos.coords.speed?(pos.coords.speed*3.6).toFixed(1):'--';
       document.getElementById('speed').textContent=speed;
     });
   }
 }
 setInterval(updatePosition,500);
+
+function trimRouteLine(currentLatLng){
+  if(!routeData || !routeData.coordinates || !routeLine) return;
+  let coords=routeData.coordinates.slice();
+  let index=coords.findIndex(c=>currentLatLng.distanceTo(L.latLng(c[1],c[0]))>1);
+  if(index>0) coords=coords.slice(index);
+  routeLine.setLatLngs(coords.map(c=>[c[1],c[0]]));
+}
 
 function returnToMe(){ if(lastPos) map.flyTo(lastPos,map.getMaxZoom(),{animate:true}); }
 
@@ -208,7 +200,7 @@ function displayRouteInfo(route){
 }
 
 function updateBottomBar(currentPos){
-  if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
+  if(!routeData || !routeData.coordinates) return;
   let currentLatLng=L.latLng(currentPos[0],currentPos[1]);
   let lastPoint=routeData.coordinates[routeData.coordinates.length-1];
   let lastLatLng=L.latLng(lastPoint[1],lastPoint[0]);
