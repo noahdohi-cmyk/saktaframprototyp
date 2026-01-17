@@ -1,162 +1,206 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8">
 <title>SaktaFram</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
 <style>
-html,body{margin:0;height:100%;font-family:sans-serif;}
-#map{height:100%;width:100%;}
+html, body { margin:0; padding:0; height:100%; font-family:sans-serif; }
+#map { height:100%; width:100%; }
 
-#version{
-  position:absolute;top:10px;left:10px;
-  background:#000a;color:#fff;
-  padding:6px 10px;border-radius:6px;
-  z-index:1000;font-weight:bold;
+/* Panel */
+.panel {
+  background: rgba(255,255,255,0.8);
+  backdrop-filter: blur(8px);
+  border-radius:12px;
+  padding:10px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.3);
 }
 
-#search{
-  position:absolute;top:20px;left:50%;
-  transform:translateX(-50%);
-  background:#fff;border-radius:10px;
-  padding:10px;display:flex;gap:8px;
-  z-index:1000;
+/* Search */
+#searchBox {
+  position:absolute; top:20px; left:50%; transform:translateX(-50%);
+  z-index:1000; display:flex; gap:10px;
 }
-#search input{padding:6px;font-size:16px}
-#search button{padding:6px 10px;font-weight:bold}
-
-#bottomBar{
-  position:absolute;bottom:0;left:0;width:100%;
-  background:#000d;color:#fff;
-  display:flex;justify-content:space-around;
-  padding:12px 0;font-size:15px;
-  z-index:1000;
+#searchBox.hide { opacity:0; pointer-events:none; }
+#searchBox input {
+  padding:8px 12px; width:200px; border-radius:8px; border:1px solid #ccc;
+}
+#searchBox button {
+  padding:8px 16px; border:none; border-radius:8px;
+  background:#007bff; color:white; font-weight:bold;
 }
 
-#endBtn{
-  position:absolute;right:20px;bottom:90px;
-  width:50px;height:50px;border-radius:50%;
-  background:#c00;color:#fff;
-  border:none;font-size:18px;
-  display:none;z-index:1000;
+/* Buttons */
+#endNav, #returnBtn {
+  position:absolute; z-index:1003; border:none; border-radius:50%;
+  width:50px; height:50px; font-size:22px; cursor:pointer;
+}
+#endNav { bottom:150px; right:20px; background:#dc3545; color:white; }
+#returnBtn { bottom:80px; right:20px; background:#007bff; color:white; }
+
+/* Bottom bar */
+#bottomBar {
+  position:absolute; bottom:-60px; left:0; width:100%;
+  background: rgba(0,0,0,0.8); color:white;
+  display:flex; justify-content:space-around;
+  border-top-left-radius:12px; border-top-right-radius:12px;
+  transition: bottom 0.4s ease; z-index:1000;
+}
+#bottomBar.show { bottom:0; }
+.bottomItem { display:flex; flex-direction:column; align-items:center; }
+
+/* Version */
+#versionTag {
+  position:absolute; top:10px; left:10px;
+  background:rgba(0,0,0,0.7); color:white;
+  padding:5px 10px; border-radius:5px; z-index:1001;
 }
 
 /* Blob */
-.blob{
-  width:20px;height:20px;
-  background:#2fa4ff;
+.pulsingMarker {
+  width:20px; height:20px;
+  background: rgba(0,150,255,0.7);
   border-radius:50%;
-  box-shadow:0 0 15px #2fa4ff;
   animation:pulse 1.2s infinite;
 }
-@keyframes pulse{
-  0%{transform:scale(.8);opacity:.7}
-  50%{transform:scale(1.3);opacity:.4}
-  100%{transform:scale(.8);opacity:.7}
+@keyframes pulse {
+  0%{transform:scale(0.8);opacity:0.7;}
+  50%{transform:scale(1.3);opacity:0.4;}
+  100%{transform:scale(0.8);opacity:0.7;}
+}
+
+/* Suggestions */
+#suggestions {
+  position:absolute; top:58px; left:50%; transform:translateX(-50%);
+  background:white; z-index:1002; border-radius:8px;
+  width:220px; max-height:200px; overflow:auto; display:none;
+}
+.suggestionItem { padding:6px 10px; cursor:pointer; }
+.suggestionItem:hover { background:#eee; }
+
+/* Next step */
+#nextStep {
+  position:absolute; top:90px; left:50%; transform:translateX(-50%);
+  background: rgba(0,0,0,0.7); color:white;
+  padding:12px 16px; border-radius:16px;
+  display:none; z-index:1003;
 }
 </style>
 </head>
 
 <body>
-<div id="version">Version 1.12</div>
+<div id="versionTag">Version 1.12</div>
 
-<div id="search">
-  <input id="dest" placeholder="Adress eller plats">
-  <button onclick="search()">Sök</button>
-  <button onclick="startNav()">Påbörja</button>
+<div id="searchBox" class="panel">
+  <input id="searchInput" placeholder="Adress eller plats" oninput="autocomplete()">
+  <button onclick="searchPlace()"><i class="fa fa-search"></i></button>
+  <button onclick="startNavigation()"><i class="fa fa-play"></i></button>
 </div>
 
-<button id="endBtn" onclick="endNav()">✕</button>
+<button id="endNav" onclick="endNavigation()" style="display:none;"><i class="fa fa-stop"></i></button>
+<button id="returnBtn" onclick="returnToMe()" style="display:none;"><i class="fa fa-location-arrow"></i></button>
+
+<div id="suggestions"></div>
+<div id="nextStep"><span id="nextStepText"></span></div>
 
 <div id="map"></div>
 
 <div id="bottomBar">
-  <div>⏰ <span id="arrival">--:--</span></div>
-  <div>⏳ <span id="time">-- min</span></div>
-  <div>🛣 <span id="dist">-- km</span></div>
+  <div class="bottomItem"><i class="fa fa-clock"></i><span id="arrivalTime">--:--</span></div>
+  <div class="bottomItem"><i class="fa fa-hourglass-half"></i><span id="timeLeft">-- min</span></div>
+  <div class="bottomItem"><i class="fa fa-road"></i><span id="distanceLeft">-- km</span></div>
+  <div class="bottomItem"><i class="fa fa-tachometer-alt"></i><span id="speed">-- km/h</span></div>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
 <script>
-const map=L.map('map',{zoomControl:false}).setView([63.83,20.26],6);
+let map = L.map('map',{zoomControl:false}).setView([63.83,20.26],6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-let userPos=null, blob=null, route=null, nav=false;
+let userIcon=L.divIcon({className:'pulsingMarker',iconSize:[20,20],iconAnchor:[10,10]});
+let userBlob=null,lastPos=null,routeData=null,navActive=false;
 
-const blobIcon=L.divIcon({
-  className:'blob',
-  iconSize:[20,20],
-  iconAnchor:[10,10]
-});
-
-const routing=L.Routing.control({
+let routingControl=L.Routing.control({
   waypoints:[],
-  lineOptions:{styles:[{color:'#1e90ff',weight:6}]},
-  show:false,
-  addWaypoints:false
+  lineOptions:{styles:[{color:'blue',weight:5}]},
+  router:L.Routing.osrmv1({serviceUrl:'https://router.project-osrm.org/route/v1'}),
+  addWaypoints:false,
+  show:false
 }).addTo(map);
 
-/* GPS */
-setInterval(()=>{
-  navigator.geolocation.getCurrentPosition(p=>{
-    userPos=L.latLng(p.coords.latitude,p.coords.longitude);
-    if(nav && blob) blob.setLatLng(userPos);
-    if(nav && route) updateBar();
-  });
-},500);
+function updatePosition(){
+  navigator.geolocation.getCurrentPosition(pos=>{
+    let lat=pos.coords.latitude,lng=pos.coords.longitude;
+    lastPos=L.latLng(lat,lng);
 
-/* Search */
-function search(){
-  const q=document.getElementById('dest').value;
-  if(!q||!userPos)return;
-  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}`)
-  .then(r=>r.json()).then(d=>{
-    if(!d.length)return;
-    routing.setWaypoints([userPos,L.latLng(d[0].lat,d[0].lon)]);
-    routing.on('routesfound',e=>route=e.routes[0]);
+    if(navActive){
+      if(!userBlob) userBlob=L.marker(lastPos,{icon:userIcon}).addTo(map);
+      else userBlob.setLatLng(lastPos);
+      updateBottomBar();
+    }
+    document.getElementById('speed').textContent=
+      pos.coords.speed?(pos.coords.speed*3.6).toFixed(1):'--';
   });
 }
+setInterval(updatePosition,500);
 
-/* Start */
-function startNav(){
-  if(!route||!userPos)return;
-  nav=true;
-  map.flyTo(userPos,18,{duration:1.4});
-
-  setTimeout(()=>{
-    blob=L.marker(userPos,{icon:blobIcon}).addTo(map);
-  },1400);
-
-  document.getElementById('endBtn').style.display='block';
+function searchPlace(){
+  let q=searchInput.value;
+  if(!q||!lastPos)return;
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`)
+    .then(r=>r.json()).then(d=>{
+      if(!d.length)return;
+      let dest=L.latLng(d[0].lat,d[0].lon);
+      routingControl.setWaypoints([lastPos,dest]);
+      routingControl.on('routesfound',e=>{
+        routeData=e.routes[0];
+        showRouteInfo();
+      });
+    });
 }
 
-/* End */
-function endNav(){
-  nav=false;
-  if(blob){map.removeLayer(blob);blob=null;}
-  routing.setWaypoints([]);
-  route=null;
-  document.getElementById('endBtn').style.display='none';
+function startNavigation(){
+  if(!routeData||!lastPos)return;
+  navActive=true;
+  document.getElementById('bottomBar').classList.add('show');
+  document.getElementById('searchBox').classList.add('hide');
+  document.getElementById('endNav').style.display='block';
+  document.getElementById('returnBtn').style.display='block';
+  map.flyTo(lastPos,map.getMaxZoom());
 }
 
-/* Bottom bar */
-function updateBar(){
-  const end=route.coordinates.at(-1);
-  const km=userPos.distanceTo(L.latLng(end[1],end[0]))/1000;
-  const min=km/30*60;
-  const eta=new Date(Date.now()+min*60000);
+function endNavigation(){
+  navActive=false;
+  routingControl.setWaypoints([]);
+  if(userBlob){map.removeLayer(userBlob);userBlob=null;}
+  document.getElementById('bottomBar').classList.remove('show');
+  document.getElementById('searchBox').classList.remove('hide');
+  document.getElementById('endNav').style.display='none';
+  document.getElementById('returnBtn').style.display='none';
+}
 
-  document.getElementById('dist').textContent=km.toFixed(1)+' km';
-  document.getElementById('time').textContent=min.toFixed(0)+' min';
-  document.getElementById('arrival').textContent=
-    eta.getHours().toString().padStart(2,'0')+':' +
-    eta.getMinutes().toString().padStart(2,'0');
+function returnToMe(){ if(lastPos) map.flyTo(lastPos,map.getMaxZoom()); }
+
+function showRouteInfo(){
+  let km=routeData.summary.totalDistance/1000;
+  let min=km/30*60;
+  let now=new Date();
+  let arr=new Date(now.getTime()+min*60000);
+  arrivalTime.textContent=arr.getHours().toString().padStart(2,'0')+":"+arr.getMinutes().toString().padStart(2,'0');
+  timeLeft.textContent=min.toFixed(0)+" min";
+  distanceLeft.textContent=km.toFixed(1)+" km";
+}
+
+function updateBottomBar(){
+  let last=routeData.coordinates.at(-1);
+  let km=lastPos.distanceTo(L.latLng(last[1],last[0]))/1000;
+  distanceLeft.textContent=km.toFixed(1)+" km";
 }
 </script>
 </body>
