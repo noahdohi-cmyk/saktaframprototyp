@@ -62,7 +62,7 @@ body.dark { background:#121212; color:white; }
 </style>
 </head>
 <body class="light">
-<div id="versionTag">Version 1.7</div>
+<div id="versionTag">Version 1.9</div>
 
 <div id="searchBox">
   <input type="text" id="searchInput" placeholder="Adress eller plats" oninput="autocomplete()">
@@ -93,7 +93,9 @@ body.dark { background:#121212; color:white; }
 
 <script>
 var map=L.map('map',{zoomControl:false, dragging:true, touchZoom:true, scrollWheelZoom:true, doubleClickZoom:false}).setView([63.83,20.26],6);
-L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);
+
+// Gratis tile-layer utan autentisering
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
 var userIcon=L.divIcon({className:'pulsingMarker', iconSize:[20,20], iconAnchor:[10,10]});
 var userBlob=null, routeData=null, navActive=false, lastPos=null, routeMarkers=[];
@@ -123,7 +125,7 @@ function autocomplete(){
     });
 }
 
-// Position & Blob
+// Position & Blob (följer endast verklig GPS)
 function updatePosition(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(function(pos){
@@ -131,11 +133,15 @@ function updatePosition(){
       let currentLatLng=L.latLng(lat,lng);
       lastPos=currentLatLng;
 
-      if(navActive && userBlob){
-        userBlob.setLatLng(currentLatLng);
-        updateMarkerRotation(currentLatLng);
-        updateNextInstruction(currentLatLng);
-        updateBottomBar([lat,lng]);
+      if(navActive){
+        if(!userBlob){
+          userBlob=L.marker(currentLatLng,{icon:userIcon, rotationAngle:0}).addTo(map);
+        } else {
+          userBlob.setLatLng(currentLatLng);
+          updateMarkerRotation(currentLatLng);
+          updateNextInstruction(currentLatLng);
+          updateBottomBar([lat,lng]);
+        }
       }
 
       let speed=pos.coords.speed?(pos.coords.speed*3.6).toFixed(1):'--';
@@ -144,11 +150,6 @@ function updatePosition(){
   }
 }
 setInterval(updatePosition,500);
-
-// Correct blob position after pan/zoom
-map.on('moveend zoomend', ()=>{
-  if(userBlob && lastPos) userBlob.setLatLng(lastPos);
-});
 
 // Marker rotation
 function updateMarkerRotation(currentLatLng){
