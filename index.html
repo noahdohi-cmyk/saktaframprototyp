@@ -6,34 +6,33 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
   <style>
-    html, body { margin:0; padding:0; height:100%; overflow:hidden; font-family:sans-serif; }
+    html, body { margin:0; padding:0; height:100%; font-family:sans-serif; }
     #map { height: 100%; width: 100%; }
 
-    /* Sök och påbörja UI */
+    /* Themes */
+    body.light { background:#f0f0f0; }
+    body.dark { background:#121212; color:white; }
+
+    /* Search & buttons */
     #searchBox {
-      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-      z-index: 1000; background: rgba(255,255,255,0.95);
-      padding: 12px; border-radius: 12px; display: flex; gap: 10px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: opacity 0.4s ease;
+      position: absolute; top: 20px; left:50%; transform: translateX(-50%);
+      z-index:1000; background: rgba(255,255,255,0.95); padding:12px;
+      border-radius:12px; display:flex; gap:10px; box-shadow:0 4px 12px rgba(0,0,0,0.3);
+      transition: opacity 0.4s ease;
     }
     #searchBox.hide { opacity:0; pointer-events:none; }
-
-    #searchBox input {
-      padding: 8px 12px; width:200px; border-radius:8px; border:1px solid #ccc;
-      font-size:16px;
-    }
+    #searchBox input { padding:8px 12px; width:200px; border-radius:8px; border:1px solid #ccc; font-size:16px; }
     #searchBox button {
-      padding: 8px 16px; border:none; border-radius:8px;
+      padding:8px 16px; border:none; border-radius:8px;
       background:#007bff; color:white; font-weight:bold;
       cursor:pointer; transition: background 0.2s, opacity 0.4s;
     }
     #searchBox button:hover { background:#0056b3; }
-
     #startNav { display:none; opacity:0; }
 
     /* Bottom-bar */
     #bottomBar {
-      position: absolute; bottom:-60px; left:0; width:100%;
+      position:absolute; bottom:-60px; left:0; width:100%;
       background: rgba(0,0,0,0.8); color:white; padding:12px;
       display:flex; justify-content: space-around; font-weight:bold;
       font-size:16px; z-index:1000;
@@ -42,38 +41,46 @@
     }
     #bottomBar.show { bottom:0; }
 
-    /* Version */
+    /* Version tag */
     #versionTag {
-      position: absolute; top: 10px; left: 10px;
-      background: rgba(0,0,0,0.7); color:white;
-      padding: 5px 10px; font-weight: bold;
-      border-radius: 5px; z-index: 1001;
+      position:absolute; top:10px; left:10px;
+      background: rgba(0,0,0,0.7); color:white; padding:5px 10px;
+      font-weight:bold; border-radius:5px; z-index:1001;
     }
 
-    /* Pulserande blob */
+    /* Pulsing marker */
     .pulsingMarker {
-      width: 20px; height: 20px;
-      background: rgba(0, 150, 255, 0.7);
-      border-radius: 50%;
-      box-shadow: 0 0 15px rgba(0,150,255,0.5);
-      animation: pulse 1.2s infinite;
+      width:20px; height:20px;
+      background: rgba(0,150,255,0.7);
+      border-radius:50%;
+      box-shadow:0 0 15px rgba(0,150,255,0.5);
+      animation:pulse 1.2s infinite;
     }
     @keyframes pulse {
       0% { transform: scale(0.8); opacity:0.7; }
       50% { transform: scale(1.3); opacity:0.4; }
       100% { transform: scale(0.8); opacity:0.7; }
     }
+
+    /* Autocomplete suggestions */
+    #suggestions {
+      position:absolute; top:58px; left:50%; transform:translateX(-50%);
+      background:white; z-index:1002; border-radius:8px; width:220px;
+      max-height:200px; overflow-y:auto; box-shadow:0 2px 8px rgba(0,0,0,0.3); display:none;
+    }
+    .suggestionItem { padding:6px 10px; cursor:pointer; }
+    .suggestionItem:hover { background:#e0e0e0; }
   </style>
 </head>
-<body>
-
-<div id="versionTag">Version 1.2</div>
+<body class="light">
+<div id="versionTag">Version 1.4</div>
 
 <div id="searchBox">
-  <input type="text" id="searchInput" placeholder="Adress eller plats, t.ex. ICA">
+  <input type="text" id="searchInput" placeholder="Adress eller plats" oninput="autocomplete()">
   <button id="searchBtn" onclick="searchPlace()">Sök</button>
   <button id="startNav" onclick="startNavigation()">Påbörja</button>
 </div>
+<div id="suggestions"></div>
 
 <div id="map"></div>
 
@@ -81,6 +88,7 @@
   <div>Ankomst: <span id="arrivalTime">--:--</span></div>
   <div>Tid kvar: <span id="timeLeft">-- min</span></div>
   <div>Kvar: <span id="distanceLeft">-- km</span></div>
+  <div>Hastighet: <span id="speed">-- km/h</span></div>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -88,134 +96,115 @@
 <script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
 
 <script>
-var map = L.map('map',{
-  zoomControl:false, dragging:true, touchZoom:true,
-  scrollWheelZoom:true, doubleClickZoom:false
-}).setView([63.83,20.26],6);
-
+var map = L.map('map',{zoomControl:false, dragging:true, touchZoom:true, scrollWheelZoom:true, doubleClickZoom:false}).setView([63.83,20.26],6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-// Pulserande marker, initieras senare
-var userIcon = L.divIcon({className:'pulsingMarker', iconSize:[20,20]});
+var userIcon = L.divIcon({className:'pulsingMarker', iconSize:[20,20], iconAnchor:[10,10]});
 var userMarker = null;
+var routeData=null;
+var navActive=false;
+var lastPos=null;
 
 var routingControl = L.Routing.control({
   waypoints:[],
   lineOptions:{styles:[{color:'blue', opacity:0.6, weight:5}]},
-  router:L.Routing.osrmv1({ serviceUrl:'https://router.project-osrm.org/route/v1'}),
+  router:L.Routing.osrmv1({serviceUrl:'https://router.project-osrm.org/route/v1'}),
   routeWhileDragging:false,
   addWaypoints:false,
   show:false
 }).addTo(map);
 
-var routeData = null;
-var navActive = false;
+// Autocomplete
+function autocomplete(){
+  let query = document.getElementById('searchInput').value;
+  if(!query) { document.getElementById('suggestions').style.display='none'; return; }
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&viewbox=${map.getBounds().toBBoxString()}&bounded=1`)
+    .then(resp=>resp.json()).then(data=>{
+      let sug = document.getElementById('suggestions');
+      sug.innerHTML='';
+      data.forEach(item=>{
+        let div = document.createElement('div');
+        div.className='suggestionItem';
+        div.textContent = item.display_name;
+        div.onclick=()=>{ document.getElementById('searchInput').value=item.display_name; sug.style.display='none'; searchPlace(); };
+        sug.appendChild(div);
+      });
+      sug.style.display=data.length>0?'block':'none';
+    });
+}
 
 // Live-position
 function updatePosition(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(function(pos){
-      var lat = pos.coords.latitude;
-      var lng = pos.coords.longitude;
-      var currentLatLng = L.latLng(lat,lng);
+      let lat=pos.coords.latitude, lng=pos.coords.longitude;
+      let currentLatLng=L.latLng(lat,lng);
 
-      if(!userMarker){
-        userMarker = L.marker(currentLatLng,{icon:userIcon, rotationAngle:0}).addTo(map);
-      } else {
-        userMarker.setLatLng(currentLatLng);
-      }
+      if(!userMarker){ userMarker=L.marker(currentLatLng,{icon:userIcon, rotationAngle:0}).addTo(map); }
+      else { userMarker.setLatLng(currentLatLng); }
+
+      let speed = pos.coords.speed? (pos.coords.speed*3.6).toFixed(1) : '--';
+      document.getElementById('speed').textContent = speed;
 
       if(navActive){
         map.setView(currentLatLng,map.getMaxZoom(),{animate:true});
         updateBottomBar([lat,lng]);
         updateMarkerRotation(currentLatLng);
       }
+
+      lastPos = currentLatLng;
     });
   }
 }
 setInterval(updatePosition,500);
 
-// Markör rotation
 function updateMarkerRotation(currentLatLng){
   if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
-  var next = routeData.coordinates[1];
-  var nextLatLng = L.latLng(next[1],next[0]);
-  var angle = Math.atan2(nextLatLng.lng-currentLatLng.lng, nextLatLng.lat-currentLatLng.lat)*180/Math.PI;
+  let next = routeData.coordinates[1];
+  let nextLatLng = L.latLng(next[1],next[0]);
+  let angle = Math.atan2(nextLatLng.lng-currentLatLng.lng, nextLatLng.lat-currentLatLng.lat)*180/Math.PI;
   userMarker.setRotationAngle(angle);
 }
 
-// Sök destination
+// Search & route
 function searchPlace(){
-  var query = document.getElementById('searchInput').value;
+  document.getElementById('suggestions').style.display='none';
+  let query=document.getElementById('searchInput').value;
   if(!query) return;
   fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
-    .then(resp=>resp.json())
-    .then(data=>{
+    .then(resp=>resp.json()).then(data=>{
       if(data.length>0){
-        var lat=parseFloat(data[0].lat);
-        var lon=parseFloat(data[0].lon);
+        let lat=parseFloat(data[0].lat), lon=parseFloat(data[0].lon);
         L.marker([lat,lon]).addTo(map).bindPopup(query).openPopup();
 
-        var currentPos = userMarker.getLatLng();
+        let currentPos = userMarker.getLatLng();
         routingControl.setWaypoints([currentPos,L.latLng(lat,lon)]);
-        routingControl.on('routesfound',function(e){
-          routeData = e.routes[0];
-          displayRouteInfo(routeData);
-        });
+        routingControl.on('routesfound', function(e){ routeData = e.routes[0]; displayRouteInfo(routeData); });
 
-        // Visa Påbörja-knapp med fade-in
-        var startBtn = document.getElementById('startNav');
-        startBtn.style.display='inline-block';
+        let startBtn=document.getElementById('startNav'); startBtn.style.display='inline-block';
         setTimeout(()=>startBtn.style.opacity=1,50);
       } else { alert("Plats hittades inte."); }
     });
 }
 
-// Visa distans, tid, ankomst
+// Bottom-bar
 function displayRouteInfo(route){
   if(!route) return;
-  var distance = route.summary.totalDistance/1000;
-  var time = distance/30*60;
-  var now = new Date();
-  var arrival = new Date(now.getTime()+time*60000);
-  var hours = arrival.getHours().toString().padStart(2,'0');
-  var mins = arrival.getMinutes().toString().padStart(2,'0');
-  alert(`Distans: ${distance.toFixed(1)} km\nTid: ${time.toFixed(0)} min\nAnkomst: ${hours}:${mins}`);
+  let distance=route.summary.totalDistance/1000;
+  let time=distance/30*60;
+  let now=new Date(), arrival=new Date(now.getTime()+time*60000);
+  document.getElementById('arrivalTime').textContent = `${arrival.getHours().toString().padStart(2,'0')}:${arrival.getMinutes().toString().padStart(2,'0')}`;
+  document.getElementById('timeLeft').textContent = `${time.toFixed(0)} min`;
+  document.getElementById('distanceLeft').textContent = `${distance.toFixed(1)} km`;
 }
 
 // Start navigation
 function startNavigation(){
   if(!routeData) return;
   navActive=true;
-
-  // Visa bottom-bar med slide-up
-  var bar = document.getElementById('bottomBar');
-  bar.classList.add('show');
-
-  // Zoom max
+  document.getElementById('bottomBar').classList.add('show');
   map.flyTo(userMarker.getLatLng(), map.getMaxZoom(), {animate:true, duration:1.5});
-
-  // Dölj search-box
   document.getElementById('searchBox').classList.add('hide');
-}
-
-// Bottom-bar uppdatering
-function updateBottomBar(currentPos){
-  if(!routeData || !routeData.coordinates || routeData.coordinates.length<2) return;
-  var currentLatLng=L.latLng(currentPos[0],currentPos[1]);
-  var lastPoint=routeData.coordinates[routeData.coordinates.length-1];
-  var lastLatLng=L.latLng(lastPoint[1],lastPoint[0]);
-  var kmLeft = currentLatLng.distanceTo(lastLatLng)/1000;
-  var timeLeft = kmLeft/30*60;
-
-  var now = new Date();
-  var arrival = new Date(now.getTime()+timeLeft*60000);
-  var hours=arrival.getHours().toString().padStart(2,'0');
-  var mins=arrival.getMinutes().toString().padStart(2,'0');
-
-  document.getElementById('arrivalTime').textContent = `${hours}:${mins}`;
-  document.getElementById('timeLeft').textContent = `${timeLeft.toFixed(0)} min`;
-  document.getElementById('distanceLeft').textContent = `${kmLeft.toFixed(1)} km`;
 }
 </script>
 </body>
